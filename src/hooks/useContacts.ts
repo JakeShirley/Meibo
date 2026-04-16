@@ -24,6 +24,7 @@ export interface DisplayFields {
 export function useContacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [displayFields, setDisplayFields] = useState<DisplayFields>({ tableFields: [], detailFields: [] });
+  const [rawSchema, setRawSchema] = useState<SchemaField[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -94,6 +95,7 @@ export function useContacts() {
           }
 
           setDisplayFields({ tableFields, detailFields });
+          setRawSchema(schema);
           relationMappings.current = mappings;
           expandFields.current = expands;
 
@@ -209,8 +211,10 @@ export function useContacts() {
   }, [search, sortField, sortDir, buildFilter, flattenContacts]);
 
   return {
+    collectionName: COLLECTION,
     contacts,
     displayFields,
+    rawSchema,
     loading,
     error,
     page,

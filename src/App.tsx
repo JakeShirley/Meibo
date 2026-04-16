@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useContacts } from "./hooks/useContacts.ts";
 import ContactsTable from "./components/ContactsTable.tsx";
 import ContactDetail from "./components/ContactDetail.tsx";
+import RecordForm from "./components/RecordForm.tsx";
 import SearchBar from "./components/SearchBar.tsx";
 import Pagination from "./components/Pagination.tsx";
 import ExportButtons from "./components/ExportButtons.tsx";
@@ -15,8 +16,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("contacts");
 
   const {
+    collectionName,
     contacts,
     displayFields,
+    rawSchema,
     loading,
     error,
     page,
@@ -29,9 +32,11 @@ export default function App() {
     sortDir,
     setSortDir,
     fetchAll,
+    refetch,
   } = useContacts();
 
   const [selected, setSelected] = useState<Contact | null>(null);
+  const [editing, setEditing] = useState<Contact | null | "new">(null);
   const [searchInput, setSearchInput] = useState("");
 
   // Debounce search input
@@ -90,8 +95,16 @@ export default function App() {
       {activeTab === "contacts" && (
         <>
           <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="w-full sm:max-w-sm">
-              <SearchBar value={searchInput} onChange={setSearchInput} />
+            <div className="flex items-center gap-3">
+              <div className="w-full sm:w-72">
+                <SearchBar value={searchInput} onChange={setSearchInput} />
+              </div>
+              <button
+                onClick={() => setEditing("new")}
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                + Add
+              </button>
             </div>
             <ExportButtons fetchAll={fetchAll} />
           </div>
@@ -132,6 +145,18 @@ export default function App() {
               contact={selected}
               fields={displayFields.detailFields}
               onClose={() => setSelected(null)}
+              onEdit={() => { setEditing(selected); setSelected(null); }}
+            />
+          )}
+
+          {editing && (
+            <RecordForm
+              collection={collectionName}
+              fields={rawSchema}
+              record={editing === "new" ? null : editing}
+              onSave={() => { setEditing(null); refetch(); }}
+              onClose={() => setEditing(null)}
+              onDelete={() => { setEditing(null); refetch(); }}
             />
           )}
         </>

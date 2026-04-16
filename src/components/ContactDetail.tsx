@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { Contact } from "../types/contact.ts";
 
 interface SchemaField {
@@ -9,6 +10,7 @@ interface Props {
   contact: Contact;
   fields: SchemaField[];
   onClose: () => void;
+  onEdit?: () => void;
 }
 
 function toLabel(name: string): string {
@@ -17,7 +19,15 @@ function toLabel(name: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function ContactDetail({ contact, fields, onClose }: Props) {
+export default function ContactDetail({ contact, fields, onClose, onEdit }: Props) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
   const displayFields = fields.length > 0
     ? fields.map((f) => ({ key: f.name, label: toLabel(f.name) }))
     : Object.keys(contact)
@@ -52,9 +62,19 @@ export default function ContactDetail({ contact, fields, onClose }: Props) {
             </div>
           ))}
         </dl>
-        <div className="mt-4 text-xs text-gray-400">
-          Created: {new Date(String(contact.created ?? "")).toLocaleDateString()} · Updated:{" "}
-          {new Date(String(contact.updated ?? "")).toLocaleDateString()}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-xs text-gray-400">
+            Created: {new Date(String(contact.created ?? "")).toLocaleDateString()} · Updated:{" "}
+            {new Date(String(contact.updated ?? "")).toLocaleDateString()}
+          </div>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Edit
+            </button>
+          )}
         </div>
       </div>
     </div>

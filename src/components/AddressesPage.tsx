@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useCollection } from "../hooks/useCollection.ts";
 import ContactsTable from "./ContactsTable.tsx";
 import ContactDetail from "./ContactDetail.tsx";
+import RecordForm from "./RecordForm.tsx";
 import SearchBar from "./SearchBar.tsx";
 import Pagination from "./Pagination.tsx";
 import ExportButtons from "./ExportButtons.tsx";
@@ -15,8 +16,10 @@ interface Address {
 
 export default function AddressesPage() {
   const {
+    collectionName,
     items,
     fields,
+    rawSchema,
     loading,
     error,
     page,
@@ -29,9 +32,11 @@ export default function AddressesPage() {
     sortDir,
     setSortDir,
     fetchAll,
+    refetch,
   } = useCollection<Address>(COLLECTION);
 
   const [selected, setSelected] = useState<Address | null>(null);
+  const [editing, setEditing] = useState<Address | null | "new">(null);
   const [searchInput, setSearchInput] = useState("");
 
   useEffect(() => {
@@ -58,8 +63,16 @@ export default function AddressesPage() {
   return (
     <>
       <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="w-full sm:max-w-sm">
-          <SearchBar value={searchInput} onChange={setSearchInput} />
+        <div className="flex items-center gap-3">
+          <div className="w-full sm:w-72">
+            <SearchBar value={searchInput} onChange={setSearchInput} />
+          </div>
+          <button
+            onClick={() => setEditing("new")}
+            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            + Add
+          </button>
         </div>
         <ExportButtons fetchAll={fetchAll} />
       </div>
@@ -100,6 +113,18 @@ export default function AddressesPage() {
           contact={selected}
           fields={fields}
           onClose={() => setSelected(null)}
+          onEdit={() => { setEditing(selected); setSelected(null); }}
+        />
+      )}
+
+      {editing && (
+        <RecordForm
+          collection={collectionName}
+          fields={rawSchema}
+          record={editing === "new" ? null : editing}
+          onSave={() => { setEditing(null); refetch(); }}
+          onClose={() => setEditing(null)}
+          onDelete={() => { setEditing(null); refetch(); }}
         />
       )}
     </>

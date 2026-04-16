@@ -17,6 +17,7 @@ type Record = { id: string; [key: string]: unknown };
 export function useCollection<T extends Record = Record>(collectionName: string) {
   const [items, setItems] = useState<T[]>([]);
   const [fields, setFields] = useState<SchemaField[]>([]);
+  const [rawSchema, setRawSchema] = useState<SchemaField[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -71,6 +72,7 @@ export function useCollection<T extends Record = Record>(collectionName: string)
           }
 
           setFields(displayFields);
+          setRawSchema(schema);
           expandFields.current = expands;
           relationMappingsRef.current = mappings;
 
@@ -199,8 +201,10 @@ export function useCollection<T extends Record = Record>(collectionName: string)
   }, [collectionName, search, sortField, sortDir, buildFilter, flattenItems]);
 
   return {
+    collectionName,
     items,
     fields,
+    rawSchema,
     loading,
     error,
     page,
