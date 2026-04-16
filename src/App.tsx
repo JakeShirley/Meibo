@@ -6,9 +6,10 @@ import SearchBar from "./components/SearchBar.tsx";
 import Pagination from "./components/Pagination.tsx";
 import ExportButtons from "./components/ExportButtons.tsx";
 import AddressesPage from "./components/AddressesPage.tsx";
+import FamilySidesPage from "./components/FamilySidesPage.tsx";
 import type { Contact } from "./types/contact.ts";
 
-type Tab = "contacts" | "addresses";
+type Tab = "contacts" | "addresses" | "family_sides";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("contacts");
@@ -58,6 +59,7 @@ export default function App() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "contacts", label: "Contacts" },
     { key: "addresses", label: "Addresses" },
+    { key: "family_sides", label: "Group Tags" },
   ];
 
   return (
@@ -136,6 +138,8 @@ export default function App() {
       )}
 
       {activeTab === "addresses" && <AddressesPage />}
+
+      {activeTab === "family_sides" && <FamilySidesPage />}
     </div>
   );
 }
