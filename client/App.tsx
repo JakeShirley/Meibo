@@ -11,9 +11,10 @@ import FamilySidesPage from "./components/FamilySidesPage.tsx";
 import ThemeToggle from "./components/ThemeToggle.tsx";
 import FallingPetals from "./components/FallingPetals.tsx";
 import PixelTrees from "./components/PixelTrees.tsx";
+import MapPage from "./components/MapPage.tsx";
 import type { Contact } from "./types/contact.ts";
 
-type Tab = "contacts" | "addresses" | "family_sides";
+type Tab = "contacts" | "addresses" | "family_sides" | "map";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("contacts");
@@ -68,6 +69,7 @@ export default function App() {
     { key: "contacts", label: "Contacts" },
     { key: "addresses", label: "Addresses" },
     { key: "family_sides", label: "Group Tags" },
+    { key: "map", label: "Map" },
   ];
 
   return (
@@ -174,6 +176,8 @@ export default function App() {
       {activeTab === "addresses" && <AddressesPage />}
 
       {activeTab === "family_sides" && <FamilySidesPage />}
+
+      {activeTab === "map" && <MapPage />}
     </div>
     </>
   );

@@ -107,12 +107,13 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
         if (f.type === "number") {
           payload[f.name] = val === "" ? 0 : Number(val);
         } else if (f.type === "relation") {
-          // Don't send empty strings for relations — use null or omit
           payload[f.name] = val || null;
         } else {
           payload[f.name] = val ?? "";
         }
       }
+
+      // Geocoding is handled server-side for address records
       if (isEdit && record) {
         await pb.collection(collection).update(String(record.id), payload);
       } else {
