@@ -81,7 +81,7 @@ export default function FamilySidesPage() {
           </div>
           <button
             onClick={() => setEditingTag("new")}
-            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-blue-700"
+            className="rounded-md bg-primary px-3 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-primary-hover"
           >
             + Tag
           </button>
@@ -90,33 +90,33 @@ export default function FamilySidesPage() {
       </div>
 
       {(contacts.error || tags.error) && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-text">
           {contacts.error || tags.error}
         </div>
       )}
 
       {contacts.loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       ) : (
         <div className="space-y-3">
           {grouped.length === 0 ? (
-            <div className="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-gray-400">
+            <div className="rounded-lg border border-border bg-surface-alt px-4 py-8 text-center text-text-muted">
               No contacts found.
             </div>
           ) : (
             grouped.map(([side, members]) => (
-              <div key={side} className="rounded-lg border border-gray-200 bg-white">
+              <div key={side} className="rounded-lg border border-border bg-surface-alt">
                 <button
                   onClick={() => setExpandedSide(expandedSide === side ? null : side)}
-                  className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-gray-50"
+                  className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-hover"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold capitalize text-gray-900">
+                    <span className="text-sm font-semibold capitalize text-text">
                       {side}
                     </span>
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                    <span className="rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-text">
                       {members.length}
                     </span>
                     {side !== "Unassigned" && (
@@ -128,14 +128,14 @@ export default function FamilySidesPage() {
                           );
                           if (tagRecord) setEditingTag(tagRecord);
                         }}
-                        className="rounded px-1.5 py-0.5 text-xs text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                        className="rounded px-1.5 py-0.5 text-xs text-text-muted hover:bg-surface-hover hover:text-text-secondary"
                       >
                         Edit
                       </span>
                     )}
                   </div>
                   <svg
-                    className={`h-4 w-4 text-gray-400 transition-transform ${expandedSide === side ? "rotate-180" : ""}`}
+                    className={`h-4 w-4 text-text-muted transition-transform ${expandedSide === side ? "rotate-180" : ""}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -144,7 +144,7 @@ export default function FamilySidesPage() {
                   </svg>
                 </button>
                 {expandedSide === side && (
-                  <div className="border-t border-gray-100">
+                  <div className="border-t border-border-light">
                     <table className="min-w-full divide-y divide-gray-100 text-sm">
                       <tbody className="divide-y divide-gray-50">
                         {members.map((member) => {
@@ -159,15 +159,15 @@ export default function FamilySidesPage() {
                             <tr
                               key={member.id}
                               onClick={() => setSelected(member)}
-                              className="cursor-pointer transition-colors hover:bg-blue-50"
+                              className="cursor-pointer transition-colors hover:bg-surface-hover"
                             >
-                              <td className="px-4 py-2 font-medium text-gray-900">
+                              <td className="px-4 py-2 font-medium text-text">
                                 {name || member.id}
                               </td>
-                              <td className="px-4 py-2 text-gray-500">
+                              <td className="px-4 py-2 text-text-secondary">
                                 {String(member.email ?? "")}
                               </td>
-                              <td className="px-4 py-2 text-gray-500">
+                              <td className="px-4 py-2 text-text-secondary">
                                 {String(member.phone_number ?? member.phone ?? "")}
                               </td>
                             </tr>

@@ -159,6 +159,8 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
     }
   };
 
+  const inputClass = "w-full rounded-md border border-input-border bg-surface-alt px-3 py-2 text-sm text-text focus:border-input-focus focus:outline-none focus:ring-1 focus:ring-input-focus";
+
   const renderField = (f: SchemaField) => {
     const value = values[f.name] ?? "";
 
@@ -168,7 +170,7 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
         <select
           value={String(value)}
           onChange={(e) => handleChange(f.name, e.target.value)}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={inputClass}
         >
           <option value="">— None —</option>
           {options.map((opt) => (
@@ -186,7 +188,7 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
           type="number"
           value={String(value)}
           onChange={(e) => handleChange(f.name, e.target.value)}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={inputClass}
         />
       );
     }
@@ -197,7 +199,7 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
           value={String(value)}
           onChange={(e) => handleChange(f.name, e.target.value)}
           rows={3}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={inputClass}
         />
       );
     }
@@ -207,21 +209,21 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
         type={f.type === "email" ? "email" : "text"}
         value={String(value)}
         onChange={(e) => handleChange(f.name, e.target.value)}
-        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className={inputClass}
       />
     );
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay">
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-surface-alt p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">
+          <h2 className="text-lg font-bold text-text">
             {isEdit ? "Edit Record" : "New Record"}
           </h2>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-md p-1 text-text-muted hover:bg-surface-hover hover:text-text-secondary"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -230,7 +232,7 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
         </div>
 
         {error && (
-          <div className="mb-4 whitespace-pre-line rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mb-4 whitespace-pre-line rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-sm text-danger-text">
             {error}
           </div>
         )}
@@ -238,7 +240,7 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
         <form onSubmit={handleSubmit} className="space-y-4">
           {rawFields.map((f) => (
             <div key={f.name}>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
+              <label className="mb-1 block text-sm font-medium text-text-secondary">
                 {toLabel(f.name)}
               </label>
               {renderField(f)}
@@ -250,19 +252,19 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
               {isEdit && onDelete && (
                 confirmDelete ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-red-600">Delete?</span>
+                    <span className="text-sm text-danger">Delete?</span>
                     <button
                       type="button"
                       onClick={handleDelete}
                       disabled={deleting}
-                      className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                      className="rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white hover:bg-danger-hover disabled:opacity-50"
                     >
                       {deleting ? "Deleting…" : "Yes, delete"}
                     </button>
                     <button
                       type="button"
                       onClick={() => setConfirmDelete(false)}
-                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-surface-hover"
                     >
                       Cancel
                     </button>
@@ -271,7 +273,7 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
                   <button
                     type="button"
                     onClick={() => setConfirmDelete(true)}
-                    className="rounded-md px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                    className="rounded-md px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger-bg"
                   >
                     Delete
                   </button>
@@ -282,14 +284,14 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
               >
                 {saving ? "Saving…" : isEdit ? "Update" : "Create"}
               </button>

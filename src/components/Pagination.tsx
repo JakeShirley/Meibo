@@ -14,13 +14,13 @@ export default function Pagination({
   if (totalPages <= 1) return null;
 
   return (
-    <div className="flex items-center justify-between text-sm text-gray-600">
+    <div className="flex items-center justify-between text-sm text-text-secondary">
       <span>{totalItems} contact{totalItems !== 1 ? "s" : ""} total</span>
       <div className="flex items-center gap-2">
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="rounded-md border border-gray-300 px-3 py-1 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-md border border-border px-3 py-1 text-text hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Previous
         </button>
@@ -30,7 +30,7 @@ export default function Pagination({
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="rounded-md border border-gray-300 px-3 py-1 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-md border border-border px-3 py-1 text-text hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Next
         </button>

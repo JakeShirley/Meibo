@@ -8,6 +8,9 @@ import Pagination from "./components/Pagination.tsx";
 import ExportButtons from "./components/ExportButtons.tsx";
 import AddressesPage from "./components/AddressesPage.tsx";
 import FamilySidesPage from "./components/FamilySidesPage.tsx";
+import ThemeToggle from "./components/ThemeToggle.tsx";
+import FallingPetals from "./components/FallingPetals.tsx";
+import PixelTrees from "./components/PixelTrees.tsx";
 import type { Contact } from "./types/contact.ts";
 
 type Tab = "contacts" | "addresses" | "family_sides";
@@ -68,28 +71,34 @@ export default function App() {
   ];
 
   return (
-    <div className="mx-auto min-h-screen max-w-6xl bg-gray-50 px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Contact Book</h1>
-        <p className="text-sm text-gray-500">
-          Browse and export your contacts
-        </p>
+    <>
+    <FallingPetals />
+    <div className="mx-auto min-h-screen max-w-6xl bg-surface px-4 py-8">
+      <header className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-text">Contact Book</h1>
+          <p className="text-sm text-text-muted">
+            Browse and export your contacts
+          </p>
+        </div>
+        <ThemeToggle />
       </header>
 
-      <div className="mb-6 flex gap-1 border-b border-gray-200">
+      <div className="relative mb-6 flex gap-1 border-b border-border">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
+            className={`relative z-20 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.key
-                ? "border-b-2 border-blue-500 text-blue-600"
-                : "text-gray-500 hover:text-gray-700"
+                ? "border-b-2 border-primary text-primary"
+                : "text-text-muted hover:text-text-secondary"
             }`}
           >
             {tab.label}
           </button>
         ))}
+        <PixelTrees />
       </div>
 
       {activeTab === "contacts" && (
@@ -101,7 +110,7 @@ export default function App() {
               </div>
               <button
                 onClick={() => setEditing("new")}
-                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover"
               >
                 + Add
               </button>
@@ -110,14 +119,14 @@ export default function App() {
           </div>
 
           {error && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="mb-4 rounded-lg border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-text">
               {error}
             </div>
           )}
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
           ) : (
             <>
@@ -166,5 +175,6 @@ export default function App() {
 
       {activeTab === "family_sides" && <FamilySidesPage />}
     </div>
+    </>
   );
 }

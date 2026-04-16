@@ -7,7 +7,7 @@ export default function SearchBar({ value, onChange }: Props) {
   return (
     <div className="relative">
       <svg
-        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -24,7 +24,7 @@ export default function SearchBar({ value, onChange }: Props) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search by name, email, city, or phone..."
-        className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className="w-full rounded-lg border border-input-border bg-surface-alt py-2 pl-10 pr-4 text-sm text-text focus:border-input-focus focus:outline-none focus:ring-1 focus:ring-input-focus"
       />
     </div>
   );

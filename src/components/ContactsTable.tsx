@@ -57,15 +57,15 @@ export default function ContactsTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50">
+    <div className="overflow-x-auto rounded-lg border border-border">
+      <table className="min-w-full divide-y divide-border text-sm">
+        <thead className="bg-thead">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
                 onClick={() => col.type !== "relation_composed" ? onSort(col.key) : undefined}
-                className={`select-none px-4 py-3 text-left font-semibold text-gray-700 ${col.type !== "relation_composed" ? "cursor-pointer hover:bg-gray-100" : ""}`}
+                className={`select-none px-4 py-3 text-left font-semibold text-text ${col.type !== "relation_composed" ? "cursor-pointer hover:bg-surface-hover" : ""}`}
               >
                 {col.label}
                 {col.type !== "relation_composed" && arrow(col.key)}
@@ -73,12 +73,12 @@ export default function ContactsTable({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 bg-white">
+        <tbody className="divide-y divide-border-light bg-surface-alt">
           {contacts.length === 0 ? (
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-4 py-8 text-center text-gray-400"
+                className="px-4 py-8 text-center text-text-muted"
               >
                 No contacts found.
               </td>
@@ -88,12 +88,12 @@ export default function ContactsTable({
               <tr
                 key={contact.id}
                 onClick={() => onSelect(contact)}
-                className="cursor-pointer transition-colors hover:bg-blue-50"
+                className="cursor-pointer transition-colors hover:bg-surface-hover"
               >
                 {columns.map((col, i) => (
                   <td
                     key={col.key}
-                    className={`px-4 py-3 ${i === 0 ? "font-medium text-gray-900" : "text-gray-600"}`}
+                    className={`px-4 py-3 ${i === 0 ? "font-medium text-text" : "text-text-secondary"}`}
                   >
                     {getCellValue(contact, col)}
                   </td>
