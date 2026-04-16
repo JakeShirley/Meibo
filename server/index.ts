@@ -3,7 +3,7 @@ import express from "express";
 import { config } from "./config.js";
 import { handleAuth } from "./routes/auth.js";
 import { handleGeocode } from "./routes/geocode.js";
-import { createAddress, updateAddress } from "./routes/addresses.js";
+import { createAddress, updateAddress, rehydrateAddresses, rehydrateOne } from "./routes/addresses.js";
 import { pbProxy } from "./middleware/pbProxy.js";
 
 const app = express();
@@ -14,6 +14,8 @@ app.get("/api/geocode", handleGeocode);
 app.post("/api/server/auth", handleAuth);
 app.post("/api/collections/contact_addresses/records", jsonParser, createAddress);
 app.patch("/api/collections/contact_addresses/records/:id", jsonParser, updateAddress);
+app.post("/api/server/rehydrate-addresses", rehydrateAddresses);
+app.post("/api/server/rehydrate-address/:id", rehydrateOne);
 
 // Proxy everything else to PocketBase
 app.use("/api", pbProxy);

@@ -50,9 +50,18 @@ The Express server keeps PocketBase admin credentials server-side and auto-geoco
    POCKETBASE_URL=http://127.0.0.1:8090
    PB_ADMIN_EMAIL=admin@example.com
    PB_ADMIN_PASSWORD=your-password
+   MAPBOX_ACCESS_TOKEN=pk.your_token_here
    SERVER_PORT=3001
    VITE_PB_COLLECTION=contacts
    ```
+
+3. **Mapbox setup** (for geocoding)
+
+   - Create a free account at [mapbox.com](https://www.mapbox.com/)
+   - Go to [Account → Access Tokens](https://account.mapbox.com/access-tokens/)
+   - Copy your **Default public token** (starts with `pk.`) — no special scopes needed
+   - Paste it as `MAPBOX_ACCESS_TOKEN` in `.env`
+   - Free tier includes 100K geocoding requests/month
 
 ## Development
 

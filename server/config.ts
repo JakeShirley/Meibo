@@ -5,4 +5,5 @@ export const config = {
   pocketbaseUrl: process.env.POCKETBASE_URL || "http://127.0.0.1:8090",
   adminEmail: process.env.PB_ADMIN_EMAIL || "",
   adminPassword: process.env.PB_ADMIN_PASSWORD || "",
+  mapboxToken: process.env.MAPBOX_ACCESS_TOKEN || "",
 } as const;

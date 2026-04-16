@@ -27,6 +27,20 @@ function toLabel(name: string): string {
 
 const SKIP = new Set(["id", "collectionId", "collectionName", "created", "updated", "expand"]);
 
+interface SuggestedAddress {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  full: string;
+}
+
+interface GeocodeSuggestion {
+  confidence: string;
+  suggested_address: SuggestedAddress;
+}
+
 export default function RecordForm({ collection, fields, record, onSave, onClose, onDelete }: Props) {
   const isEdit = !!record;
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -35,6 +49,7 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [suggestion, setSuggestion] = useState<GeocodeSuggestion | null>(null);
 
   // Determine the raw schema fields (un-composed relations)
   // For relation_composed fields, the actual PB field is the same name with type "relation"
@@ -114,11 +129,63 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
       }
 
       // Geocoding is handled server-side for address records
-      if (isEdit && record) {
-        await pb.collection(collection).update(String(record.id), payload);
+      // Use raw fetch for address collections to get the _geocode suggestion
+      const isAddressCollection = collection === "contact_addresses";
+      let responseData: Record<string, unknown> | null = null;
+
+      if (isAddressCollection) {
+        await ensureAuthenticated();
+        const url = isEdit && record
+          ? `/api/collections/${collection}/records/${record.id}`
+          : `/api/collections/${collection}/records`;
+        const method = isEdit && record ? "PATCH" : "POST";
+        const res = await fetch(url, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: pb.authStore.token,
+          },
+          body: JSON.stringify(payload),
+        });
+        responseData = await res.json();
+        if (!res.ok) {
+          const fieldData = (responseData as Record<string, Record<string, { message?: string }>>)?.data;
+          if (fieldData && typeof fieldData === "object") {
+            const fieldErrors = Object.entries(fieldData)
+              .filter(([, v]) => v && typeof v === "object" && v.message)
+              .map(([k, v]) => `${toLabel(k)}: ${v.message}`);
+            if (fieldErrors.length > 0) {
+              setError(fieldErrors.join("\n"));
+              return;
+            }
+          }
+          setError((responseData as { message?: string })?.message || "Save failed");
+          return;
+        }
       } else {
-        await pb.collection(collection).create(payload);
+        if (isEdit && record) {
+          await pb.collection(collection).update(String(record.id), payload);
+        } else {
+          await pb.collection(collection).create(payload);
+        }
       }
+
+      // Check for geocode suggestion on address saves
+      const geocode = (responseData as Record<string, unknown>)?._geocode as GeocodeSuggestion | undefined;
+      if (geocode && geocode.confidence !== "exact" && geocode.suggested_address) {
+        // Compare suggested vs entered
+        const entered = [payload.address_street, payload.address_city, payload.address_state, payload.address_zip]
+          .map(String).filter(Boolean).join(", ").toLowerCase();
+        const suggested = [geocode.suggested_address.street, geocode.suggested_address.city, geocode.suggested_address.state, geocode.suggested_address.zip]
+          .filter(Boolean).join(", ").toLowerCase();
+
+        if (entered !== suggested) {
+          setSuggestion(geocode);
+          setSaving(false);
+          return; // Don't close — show the suggestion
+        }
+      }
+
       onSave();
     } catch (err: unknown) {
       // PocketBase ClientResponseError has nested data:
@@ -235,6 +302,47 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
         {error && (
           <div className="mb-4 whitespace-pre-line rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-sm text-danger-text">
             {error}
+          </div>
+        )}
+
+        {suggestion && (
+          <div className="mb-4 rounded-lg border border-primary bg-primary-light px-4 py-3 text-sm">
+            <p className="mb-2 font-medium text-text">
+              Mapbox suggests a different address (confidence: {suggestion.confidence}):
+            </p>
+            <p className="mb-3 text-text-secondary">
+              {suggestion.suggested_address.full}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const s = suggestion.suggested_address;
+                  setValues((prev) => ({
+                    ...prev,
+                    address_street: s.street,
+                    address_city: s.city,
+                    address_state: s.state,
+                    address_zip: s.zip,
+                    address_country: s.country,
+                  }));
+                  setSuggestion(null);
+                }}
+                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
+              >
+                Use suggested address
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSuggestion(null);
+                  onSave();
+                }}
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-surface-hover"
+              >
+                Keep my address
+              </button>
+            </div>
           </div>
         )}
 

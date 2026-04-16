@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCollection } from "../hooks/useCollection.ts";
+import pb, { ensureAuthenticated } from "../lib/pocketbase.ts";
 import ContactsTable from "./ContactsTable.tsx";
 import ContactDetail from "./ContactDetail.tsx";
 import RecordForm from "./RecordForm.tsx";
@@ -38,6 +39,80 @@ export default function AddressesPage() {
   const [selected, setSelected] = useState<Address | null>(null);
   const [editing, setEditing] = useState<Address | null | "new">(null);
   const [searchInput, setSearchInput] = useState("");
+  const [rehydrating, setRehydrating] = useState(false);
+  const [rehydrateStatus, setRehydrateStatus] = useState<string | null>(null);
+  const [rehydratingSingle, setRehydratingSingle] = useState(false);
+
+  const handleRehydrateOne = useCallback(async (id: string) => {
+    setRehydratingSingle(true);
+    try {
+      await ensureAuthenticated();
+      const res = await fetch(`/api/server/rehydrate-address/${id}`, {
+        method: "POST",
+        headers: { Authorization: pb.authStore.token },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setRehydrateStatus(`Failed: ${data.error || "Unknown error"}`);
+        setTimeout(() => setRehydrateStatus(null), 4000);
+      } else {
+        const data = await res.json();
+        setRehydrateStatus(`Geocoded → ${data._geo?.lat?.toFixed(4)}, ${data._geo?.lon?.toFixed(4)}`);
+        refetch();
+        setTimeout(() => { setRehydrateStatus(null); setSelected(null); }, 2000);
+      }
+    } catch {
+      setRehydrateStatus("Geocode request failed");
+      setTimeout(() => setRehydrateStatus(null), 4000);
+    } finally {
+      setRehydratingSingle(false);
+    }
+  }, [refetch]);
+
+  const handleRehydrate = useCallback(async () => {
+    setRehydrating(true);
+    setRehydrateStatus("Starting...");
+    try {
+      await ensureAuthenticated();
+      const token = pb.authStore.token;
+      const res = await fetch("/api/server/rehydrate-addresses", {
+        method: "POST",
+        headers: { Authorization: token },
+      });
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = JSON.parse(line.slice(6));
+            if (data.total) {
+              setRehydrateStatus(`${data.i}/${data.total} — ${data.updated} geocoded, ${data.failed} failed`);
+            }
+          }
+        }
+      }
+
+      setRehydrateStatus("Done! Refreshing...");
+      refetch();
+      setTimeout(() => setRehydrateStatus(null), 3000);
+    } catch (err) {
+      setRehydrateStatus(`Error: ${err instanceof Error ? err.message : "Failed"}`);
+      setTimeout(() => setRehydrateStatus(null), 5000);
+    } finally {
+      setRehydrating(false);
+    }
+  }, [refetch]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -77,6 +152,15 @@ export default function AddressesPage() {
         <ExportButtons fetchAll={fetchAll} />
       </div>
 
+      {rehydrateStatus && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-surface-alt px-4 py-2 text-sm text-text-secondary">
+          {rehydrating && (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          )}
+          {rehydrateStatus}
+        </div>
+      )}
+
       {error && (
         <div className="mb-4 rounded-lg border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-text">
           {error}
@@ -114,6 +198,8 @@ export default function AddressesPage() {
           fields={fields}
           onClose={() => setSelected(null)}
           onEdit={() => { setEditing(selected); setSelected(null); }}
+          onRehydrate={() => handleRehydrateOne(selected.id)}
+          rehydrating={rehydratingSingle}
         />
       )}
 
