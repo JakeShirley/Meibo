@@ -24,6 +24,8 @@ interface Props {
   onRehydrate?: () => void;
   rehydrating?: boolean;
   photoUri?: string;
+  isLinked?: boolean;
+  onLinkCardDav?: () => void;
 }
 
 function toLabel(name: string): string {
@@ -32,7 +34,7 @@ function toLabel(name: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating, photoUri }: Props) {
+export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating, photoUri, isLinked, onLinkCardDav }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -120,6 +122,20 @@ export default function ContactDetail({ contact, fields, onClose, onEdit, onRehy
             {new Date(String(contact.updated ?? "")).toLocaleDateString()}
           </div>
           <div className="flex gap-2">
+            {onLinkCardDav && !isLinked && (
+              <button
+                onClick={onLinkCardDav}
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-surface-hover"
+                title="Link this contact to a CardDAV contact"
+              >
+                🔗 Link CardDAV
+              </button>
+            )}
+            {isLinked && (
+              <span className="inline-flex items-center rounded-md bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary" title="Linked to CardDAV">
+                ✓ CardDAV Linked
+              </span>
+            )}
             {onEdit && (
               <button
                 onClick={onEdit}

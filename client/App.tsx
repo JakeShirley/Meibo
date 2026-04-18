@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useContacts } from "./hooks/useContacts.ts";
 import { useLinks } from "./hooks/useLinks.ts";
-import { useCardDav } from "./hooks/useCardDav.ts";
+import { useCardDav, type CardDavContact } from "./hooks/useCardDav.ts";
 import ContactsTable from "./components/ContactsTable.tsx";
 import ContactDetail from "./components/ContactDetail.tsx";
 import RecordForm from "./components/RecordForm.tsx";
@@ -15,6 +15,7 @@ import FallingPetals from "./components/FallingPetals.tsx";
 import PixelTrees from "./components/PixelTrees.tsx";
 import MapPage from "./components/MapPage.tsx";
 import CardDavPage from "./components/CardDavPage.tsx";
+import LinkFromDetailDialog from "./components/LinkFromDetailDialog.tsx";
 import type { Contact } from "./types/contact.ts";
 
 type Tab = "contacts" | "addresses" | "family_sides" | "map" | "carddav";
@@ -42,11 +43,11 @@ export default function App() {
     refetch,
   } = useContacts();
 
-  const { links, syncToRadicale, getHrefForPbId } = useLinks();
+  const { links, syncToRadicale, createLink, createCardDavContact, getHrefForPbId } = useLinks();
   const linkedIds = useMemo(() => new Set(Object.keys(links)), [links]);
 
   // Fetch CardDAV contacts for photo mapping
-  const { contacts: davContacts } = useCardDav();
+  const { contacts: davContacts, books, selectedBook } = useCardDav();
   const photoMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const [pbId, href] of Object.entries(links)) {
@@ -58,6 +59,7 @@ export default function App() {
 
   const [selected, setSelected] = useState<Contact | null>(null);
   const [editing, setEditing] = useState<Contact | null | "new">(null);
+  const [linkingFromDetail, setLinkingFromDetail] = useState<Contact | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
 
@@ -85,6 +87,99 @@ export default function App() {
       setPage(1);
     },
     [sortField, sortDir, setSortField, setSortDir, setPage],
+  );
+
+  const handleCreateAndLink = useCallback(
+    async (contact: Contact) => {
+      if (!books.length) return;
+      const book = selectedBook || books[0].href;
+      try {
+        const { default: pbLib, ensureAuthenticated } = await import("./lib/pocketbase.ts");
+        await ensureAuthenticated();
+        const full = await pbLib.collection(collectionName).getOne<Contact>(contact.id, { expand: "current_address" });
+
+        const firstName = String(full.first_name ?? "");
+        const lastName = String(full.last_name ?? "");
+        const email = String(full.email ?? "");
+        const phone = String(full.phone_number ?? "");
+        const bdayMonth = Number(full.birthday_month ?? 0);
+        const bdayDay = Number(full.birthday_day ?? 0);
+        const bdayYear = Number(full.birthday_year ?? 0);
+
+        const exp = (full as Record<string, unknown>).expand as Record<string, Record<string, unknown>> | undefined;
+        const addr = exp?.current_address;
+
+        const { href } = await createCardDavContact(book, {
+          fn: `${firstName} ${lastName}`.trim(),
+          firstName,
+          lastName,
+          email,
+          tel: phone,
+          adrStreet: String(addr?.address_street ?? ""),
+          adrCity: String(addr?.address_city ?? ""),
+          adrState: String(addr?.address_state ?? ""),
+          adrZip: String(addr?.address_zip ?? ""),
+          adrCountry: String(addr?.address_country ?? ""),
+          bdayMonth,
+          bdayDay,
+          bdayYear,
+        });
+
+        await createLink(contact.id, href);
+        setLinkingFromDetail(null);
+      } catch (err) {
+        console.error("[Link] Failed to create CardDAV contact:", err);
+      }
+    },
+    [books, selectedBook, collectionName, createCardDavContact, createLink],
+  );
+
+  const handleLinkExisting = useCallback(
+    async (contact: Contact, davContact: CardDavContact) => {
+      try {
+        const { default: pbLib, ensureAuthenticated } = await import("./lib/pocketbase.ts");
+        await ensureAuthenticated();
+        const full = await pbLib.collection(collectionName).getOne<Contact>(contact.id, { expand: "current_address" });
+
+        const firstName = String(full.first_name ?? "");
+        const lastName = String(full.last_name ?? "");
+        const email = String(full.email ?? "");
+        const phone = String(full.phone_number ?? "");
+        const bdayMonth = Number(full.birthday_month ?? 0);
+        const bdayDay = Number(full.birthday_day ?? 0);
+        const bdayYear = Number(full.birthday_year ?? 0);
+
+        const exp = (full as Record<string, unknown>).expand as Record<string, Record<string, unknown>> | undefined;
+        const addr = exp?.current_address;
+
+        await syncToRadicale(
+          davContact.href,
+          {
+            fn: `${firstName} ${lastName}`.trim(),
+            firstName,
+            lastName,
+            email,
+            tel: phone,
+            adrStreet: String(addr?.address_street ?? ""),
+            adrCity: String(addr?.address_city ?? ""),
+            adrState: String(addr?.address_state ?? ""),
+            adrZip: String(addr?.address_zip ?? ""),
+            adrCountry: String(addr?.address_country ?? ""),
+            bdayMonth,
+            bdayDay,
+            bdayYear,
+          },
+          davContact.raw,
+          davContact.etag,
+        );
+
+        await createLink(contact.id, davContact.href);
+        setLinkingFromDetail(null);
+      } catch (err) {
+        console.error("[Link] Failed to link:", err);
+      }
+    },
+    [createLink, syncToRadicale, collectionName],
   );
 
   const tabs: { key: Tab; label: string }[] = [
@@ -199,6 +294,20 @@ export default function App() {
               onClose={() => setSelected(null)}
               onEdit={() => { setEditing(selected); setSelected(null); }}
               photoUri={photoMap[selected.id]}
+              isLinked={linkedIds.has(selected.id)}
+              onLinkCardDav={() => { setLinkingFromDetail(selected); }}
+            />
+          )}
+
+          {linkingFromDetail && (
+            <LinkFromDetailDialog
+              contact={linkingFromDetail}
+              davContacts={davContacts.filter((c) => !Object.values(links).includes(c.href))}
+              books={books}
+              selectedBook={selectedBook || books[0]?.href || ""}
+              onCreateNew={handleCreateAndLink}
+              onLinkExisting={handleLinkExisting}
+              onClose={() => setLinkingFromDetail(null)}
             />
           )}
 
