@@ -42,9 +42,7 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "http-proxy-middleware": "^3.0.5",
     "leaflet": "^1.9.4",
-    "pocketbase": "^0.26.8",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.1"

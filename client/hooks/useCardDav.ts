@@ -1,29 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { carddav, type CardDavContact, type AddressBook } from "../lib/api.ts";
 
-export interface CardDavContact {
-  uid: string;
-  href: string;
-  etag: string;
-  fn: string;
-  email: string;
-  tel: string;
-  org: string;
-  photoUri: string;
-  adrStreet: string;
-  adrCity: string;
-  adrState: string;
-  adrZip: string;
-  adrCountry: string;
-  bdayYear: number;
-  bdayMonth: number;
-  bdayDay: number;
-  raw: string;
-}
-
-export interface AddressBook {
-  href: string;
-  displayName: string;
-}
+export type { CardDavContact, AddressBook };
 
 export function useCardDav() {
   const [books, setBooks] = useState<AddressBook[]>([]);
@@ -37,14 +15,7 @@ export function useCardDav() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch("/api/carddav/address-books")
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({ error: res.statusText }));
-          throw new Error(data.error || res.statusText);
-        }
-        return res.json() as Promise<AddressBook[]>;
-      })
+    carddav.addressBooks()
       .then((data) => {
         if (cancelled) return;
         setBooks(data);
@@ -67,12 +38,7 @@ export function useCardDav() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/carddav/contacts?book=${encodeURIComponent(bookHref)}`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(data.error || res.statusText);
-      }
-      const data: CardDavContact[] = await res.json();
+      const data = await carddav.contacts(bookHref);
       setContacts(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));

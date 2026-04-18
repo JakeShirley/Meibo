@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { contacts as contactsApi, carddav, type MergeFieldSelections } from "../lib/api.ts";
 
 /** pbId → carddavHref */
 export type LinkMap = Record<string, string>;
@@ -8,63 +9,37 @@ export function useLinks() {
 
   const fetchLinks = useCallback(async () => {
     try {
-      const res = await fetch("/api/carddav/links");
-      if (res.ok) setLinks(await res.json());
+      const data = await carddav.links();
+      setLinks(data);
     } catch { /* ignore */ }
   }, []);
 
   useEffect(() => { fetchLinks(); }, [fetchLinks]);
 
-  const createLink = useCallback(async (pbId: string, carddavHref: string) => {
-    const res = await fetch("/api/carddav/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pbId, carddavHref }),
-    });
-    if (!res.ok) throw new Error("Failed to create link");
+  const linkToExisting = useCallback(async (pbId: string, carddavHref: string) => {
+    await contactsApi.link(pbId, carddavHref);
     await fetchLinks();
+  }, [fetchLinks]);
+
+  const linkCreateNew = useCallback(async (pbId: string, book: string) => {
+    const result = await contactsApi.linkCreate(pbId, book);
+    await fetchLinks();
+    return result;
   }, [fetchLinks]);
 
   const removeLink = useCallback(async (pbId: string) => {
-    const res = await fetch(`/api/carddav/links/${encodeURIComponent(pbId)}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) throw new Error("Failed to remove link");
+    await contactsApi.unlink(pbId);
     await fetchLinks();
   }, [fetchLinks]);
 
-  const syncToRadicale = useCallback(async (
+  const mergeAndLink = useCallback(async (
+    pbId: string,
     carddavHref: string,
-    fields: { fn?: string; firstName?: string; lastName?: string; email?: string; tel?: string; org?: string; adrStreet?: string; adrCity?: string; adrState?: string; adrZip?: string; adrCountry?: string; bdayYear?: number; bdayMonth?: number; bdayDay?: number },
-    existingRaw?: string,
-    etag?: string,
+    fieldSelections: MergeFieldSelections,
   ) => {
-    const res = await fetch("/api/carddav/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ carddavHref, fields, existingRaw, etag }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: "Sync failed" }));
-      throw new Error(data.error || "Sync failed");
-    }
-  }, []);
-
-  const createCardDavContact = useCallback(async (
-    book: string,
-    fields: { fn?: string; firstName?: string; lastName?: string; email?: string; tel?: string; org?: string; adrStreet?: string; adrCity?: string; adrState?: string; adrZip?: string; adrCountry?: string; bdayYear?: number; bdayMonth?: number; bdayDay?: number },
-  ): Promise<{ href: string }> => {
-    const res = await fetch("/api/carddav/contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ book, fields }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: "Create failed" }));
-      throw new Error(data.error || "Create failed");
-    }
-    return res.json();
-  }, []);
+    await contactsApi.merge(pbId, carddavHref, fieldSelections);
+    await fetchLinks();
+  }, [fetchLinks]);
 
   // Helper lookups
   const getHrefForPbId = useCallback((pbId: string) => links[pbId], [links]);
@@ -75,5 +50,5 @@ export function useLinks() {
     return undefined;
   }, [links]);
 
-  return { links, createLink, removeLink, syncToRadicale, createCardDavContact, getHrefForPbId, getPbIdForHref, refetch: fetchLinks };
+  return { links, linkToExisting, linkCreateNew, removeLink, mergeAndLink, getHrefForPbId, getPbIdForHref, refetch: fetchLinks };
 }

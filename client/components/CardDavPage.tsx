@@ -1,16 +1,14 @@
 import { useState, useMemo } from "react";
 import { useCardDav, type CardDavContact } from "../hooks/useCardDav.ts";
 import { useLinks } from "../hooks/useLinks.ts";
-import LinkMergeDialog, { type MergedFields } from "./LinkMergeDialog.tsx";
+import LinkMergeDialog from "./LinkMergeDialog.tsx";
 import CreateCardDavDialog from "./CreateCardDavDialog.tsx";
-import pb, { ensureAuthenticated } from "../lib/pocketbase.ts";
-
-const COLLECTION = import.meta.env.VITE_PB_COLLECTION || "contacts";
+import type { MergeFieldSelections } from "../lib/api.ts";
 
 export default function CardDavPage() {
   const { books, selectedBook, setSelectedBook, contacts, loading, error, refetch } =
     useCardDav();
-  const { links, getPbIdForHref, createLink, removeLink, syncToRadicale, createCardDavContact } = useLinks();
+  const { links, getPbIdForHref, removeLink, mergeAndLink, linkCreateNew } = useLinks();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [linking, setLinking] = useState<CardDavContact | null>(null);
@@ -32,84 +30,12 @@ export default function CardDavPage() {
     );
   });
 
-  const handleLink = async (pbId: string, merged: MergedFields) => {
+  const handleLink = async (pbId: string, fieldSelections: MergeFieldSelections) => {
     if (!linking) return;
     setActionError(null);
     try {
-      // Normalize phone: strip country code, keep only digits, then format as XXX-XXX-XXXX
-      const digits = merged.phone_number.replace(/^\+1/, "").replace(/\D/g, "");
-      const pbPhone = digits.length === 10
-        ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
-        : digits.length === 7
-          ? `${digits.slice(0, 3)}-${digits.slice(3)}`
-          : merged.phone_number; // leave as-is if unexpected length
-
-      // 1. Update PocketBase contact — parse birthday (format: "27 December 1994" or "27 December")
-      let bdayMonth = 0, bdayDay = 0, bdayYear = 0;
-      if (merged.birthday) {
-        const MONTHS: Record<string, number> = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
-        const bp = merged.birthday.split(" ");
-        bdayDay = parseInt(bp[0], 10) || 0;
-        bdayMonth = MONTHS[(bp[1] || "").toLowerCase()] || 0;
-        bdayYear = parseInt(bp[2], 10) || 0;
-      }
-
-      await ensureAuthenticated();
-      await pb.collection(COLLECTION).update(pbId, {
-        first_name: merged.first_name,
-        last_name: merged.last_name,
-        email: merged.email,
-        phone_number: pbPhone,
-        birthday_month: bdayMonth,
-        birthday_day: bdayDay,
-        birthday_year: bdayYear,
-      });
-
-      // 2. Update Radicale vCard — parse address back to components
-      const addrSource = merged.address;
-      // If address came from CardDAV, use the original structured fields; otherwise parse the comma string
-      const useOriginalAddr = addrSource === [linking.adrStreet, linking.adrCity, linking.adrState, linking.adrZip, linking.adrCountry].filter(Boolean).join(", ");
-      let adrStreet = "", adrCity = "", adrState = "", adrZip = "", adrCountry = "";
-      if (useOriginalAddr) {
-        adrStreet = linking.adrStreet;
-        adrCity = linking.adrCity;
-        adrState = linking.adrState;
-        adrZip = linking.adrZip;
-        adrCountry = linking.adrCountry;
-      } else if (addrSource) {
-        // Best-effort parse: street, city, state, zip, country
-        const parts = addrSource.split(",").map((s: string) => s.trim());
-        adrStreet = parts[0] || "";
-        adrCity = parts[1] || "";
-        adrState = parts[2] || "";
-        adrZip = parts[3] || "";
-        adrCountry = parts[4] || "";
-      }
-
-      await syncToRadicale(
-        linking.href,
-        {
-          fn: `${merged.first_name} ${merged.last_name}`.trim(),
-          firstName: merged.first_name,
-          lastName: merged.last_name,
-          email: merged.email,
-          tel: merged.phone_number,
-          adrStreet,
-          adrCity,
-          adrState,
-          adrZip,
-          adrCountry,
-          bdayMonth,
-          bdayDay,
-          bdayYear,
-        },
-        linking.raw,
-        linking.etag,
-      );
-
-      // 3. Store the link
-      await createLink(pbId, linking.href);
-
+      // Single call: server handles PB update + CardDAV sync + link creation
+      await mergeAndLink(pbId, linking.href, fieldSelections);
       setLinking(null);
       refetch();
     } catch (err: unknown) {
@@ -133,40 +59,8 @@ export default function CardDavPage() {
     if (!selectedBook) return;
     setActionError(null);
     try {
-      const firstName = String(contact.first_name ?? "");
-      const lastName = String(contact.last_name ?? "");
-      const email = String(contact.email ?? "");
-      const phone = String(contact.phone_number ?? "");
-      const bdayMonth = Number(contact.birthday_month ?? 0);
-      const bdayDay = Number(contact.birthday_day ?? 0);
-      const bdayYear = Number(contact.birthday_year ?? 0);
-
-      // Parse address from expanded relation
-      const exp = contact.expand as Record<string, Record<string, unknown>> | undefined;
-      const addr = exp?.current_address;
-      const adrStreet = String(addr?.address_street ?? "");
-      const adrCity = String(addr?.address_city ?? "");
-      const adrState = String(addr?.address_state ?? "");
-      const adrZip = String(addr?.address_zip ?? "");
-      const adrCountry = String(addr?.address_country ?? "");
-
-      const { href } = await createCardDavContact(selectedBook, {
-        fn: `${firstName} ${lastName}`.trim(),
-        firstName,
-        lastName,
-        email,
-        tel: phone,
-        adrStreet,
-        adrCity,
-        adrState,
-        adrZip,
-        adrCountry,
-        bdayMonth,
-        bdayDay,
-        bdayYear,
-      });
-
-      await createLink(String(contact.id), href);
+      // Single call: server fetches PB contact, creates vCard, saves link
+      await linkCreateNew(String(contact.id), selectedBook);
       setCreatingNew(false);
       refetch();
     } catch (err: unknown) {

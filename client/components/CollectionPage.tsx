@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCollection } from "../hooks/useCollection.ts";
+import { contacts as contactsApi, addresses as addressesApi, tags as tagsApi } from "../lib/api.ts";
 import ContactsTable from "./ContactsTable.tsx";
 import ContactDetail from "./ContactDetail.tsx";
 import SearchBar from "./SearchBar.tsx";
@@ -30,7 +31,6 @@ export default function CollectionPage({ collection }: Props) {
     setSortField,
     sortDir,
     setSortDir,
-    fetchAll,
   } = useCollection<Record>(collection);
 
   const [selected, setSelected] = useState<Record | null>(null);
@@ -63,7 +63,10 @@ export default function CollectionPage({ collection }: Props) {
         <div className="w-full sm:max-w-sm">
           <SearchBar value={searchInput} onChange={setSearchInput} />
         </div>
-        <ExportButtons fetchAll={fetchAll} />
+        <ExportButtons exportUrl={(format) => {
+          const api = collection === 'contact_addresses' ? addressesApi : collection === 'group_tags' ? tagsApi : contactsApi;
+          return api.exportUrl(format);
+        }} />
       </div>
 
       {error && (

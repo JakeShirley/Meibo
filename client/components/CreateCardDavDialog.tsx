@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
-import pb, { ensureAuthenticated } from "../lib/pocketbase.ts";
-import type { Contact } from "../types/contact.ts";
+import { contacts as contactsApi, type Contact } from "../lib/api.ts";
 
 const MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-const COLLECTION = import.meta.env.VITE_PB_COLLECTION || "contacts";
 
 interface Props {
   linkedPbIds: Set<string>;
@@ -18,22 +15,17 @@ export default function CreateCardDavDialog({ linkedPbIds, onConfirm, onClose }:
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<Contact | null>(null);
 
-  // Search PocketBase contacts (debounced)
+  // Search contacts via new API (debounced)
   useEffect(() => {
     if (!query.trim()) { setResults([]); return; }
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        await ensureAuthenticated();
-        const filter = query
-          .split(/\s+/)
-          .filter(Boolean)
-          .map((w) => `(first_name ~ "${w}" || last_name ~ "${w}" || email ~ "${w}" || phone_number ~ "${w}")`)
-          .join(" && ");
-        const res = await pb.collection(COLLECTION).getList<Contact>(1, 20, {
-          filter: filter || undefined,
+        const res = await contactsApi.list({
+          page: 1,
+          perPage: 20,
+          search: query,
           sort: "first_name",
-          expand: "current_address",
         });
         // Filter out contacts that are already linked
         setResults(res.items.filter((c) => !linkedPbIds.has(String(c.id))));
@@ -47,14 +39,12 @@ export default function CreateCardDavDialog({ linkedPbIds, onConfirm, onClose }:
   }, [query, linkedPbIds]);
 
   const getPbAddress = (c: Contact): { street: string; city: string; state: string; zip: string; country: string; display: string } => {
-    const exp = (c as Record<string, unknown>).expand as Record<string, Record<string, unknown>> | undefined;
-    const addr = exp?.current_address;
-    if (!addr) return { street: "", city: "", state: "", zip: "", country: "", display: "" };
-    const street = String(addr.address_street ?? "");
-    const city = String(addr.address_city ?? "");
-    const state = String(addr.address_state ?? "");
-    const zip = String(addr.address_zip ?? "");
-    const country = String(addr.address_country ?? "");
+    // Server flattens expanded relations to dot-notation
+    const street = String(c["current_address.address_street"] ?? "");
+    const city = String(c["current_address.address_city"] ?? "");
+    const state = String(c["current_address.address_state"] ?? "");
+    const zip = String(c["current_address.address_zip"] ?? "");
+    const country = String(c["current_address.address_country"] ?? "");
     return { street, city, state, zip, country, display: [street, city, state, zip, country].filter(Boolean).join(", ") };
   };
 

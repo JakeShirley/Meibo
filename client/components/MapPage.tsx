@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import pb, { ensureAuthenticated } from "../lib/pocketbase.ts";
+import { contacts as contactsApi, type MapPin } from "../lib/api.ts";
 import ContactDetail from "./ContactDetail.tsx";
 
 interface Record {
@@ -9,29 +9,10 @@ interface Record {
   [key: string]: unknown;
 }
 
-interface MapContact {
-  contact: Record;
-  lat: number;
-  lon: number;
-  label: string;
-  address: string;
-}
-
-function contactLabel(c: Record): string {
-  return [c.first_name ?? c.name ?? "", c.last_name ?? ""]
-    .map(String).filter(Boolean).join(" ") || String(c.id);
-}
-
-function buildAddressLabel(addr: Record): string {
-  return ["address_street", "address_city", "address_state", "address_zip", "address_country"]
-    .map((k) => String(addr[k] ?? "")).filter(Boolean).join(", ");
-}
-
 export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mapped, setMapped] = useState<MapContact[]>([]);
-  const [unmapped, setUnmapped] = useState(0);
+  const [mapped, setMapped] = useState<MapPin[]>([]);
   const [selected, setSelected] = useState<Record | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
@@ -50,40 +31,14 @@ export default function MapPage() {
     return () => { map.remove(); leafletMap.current = null; };
   }, []);
 
-  // Fetch all contacts, read lat/lon from expanded address
+  // Fetch map pins from new API
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        await ensureAuthenticated();
-        const items = await pb.collection("contacts").getFullList<Record>({
-          expand: "current_address",
-        });
-
-        const pins: MapContact[] = [];
-        let noCoords = 0;
-
-        for (const c of items) {
-          const expand = (c as Record).expand as globalThis.Record<string, globalThis.Record<string, unknown>> | undefined;
-          const addr = expand?.current_address;
-          if (!addr || typeof addr !== "object") { noCoords++; continue; }
-
-          const lat = Number(addr.latitude);
-          const lon = Number(addr.longitude);
-          if (!lat && !lon) { noCoords++; continue; }
-
-          pins.push({
-            contact: c,
-            lat,
-            lon,
-            label: contactLabel(c),
-            address: buildAddressLabel(addr as Record),
-          });
-        }
-
+        const pins = await contactsApi.map();
         if (!cancelled) {
           setMapped(pins);
-          setUnmapped(noCoords);
           setLoading(false);
         }
       } catch (err) {
@@ -103,8 +58,8 @@ export default function MapPage() {
 
     for (const pin of mapped) {
       const marker = L.marker([pin.lat, pin.lon])
-        .bindPopup(`<b>${pin.label}</b><br/>${pin.address}`)
-        .on("click", () => setSelected(pin.contact));
+        .bindPopup(`<b>${pin.name}</b><br/>${pin.address}`)
+        .on("click", () => setSelected({ id: pin.id, name: pin.name } as Record));
       markersRef.current.addLayer(marker);
     }
 
@@ -137,7 +92,6 @@ export default function MapPage() {
 
       <div className="mt-2 text-xs text-text-muted">
         {mapped.length} contact{mapped.length !== 1 ? "s" : ""} mapped
-        {unmapped > 0 && ` · ${unmapped} without coordinates (edit address to geocode)`}
       </div>
 
       {selected && (
