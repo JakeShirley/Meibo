@@ -15,7 +15,12 @@ interface Address {
   [key: string]: unknown;
 }
 
-export default function AddressesPage() {
+interface AddressesPageProps {
+  initialAddressId?: string | null;
+  onAddressViewed?: () => void;
+}
+
+export default function AddressesPage({ initialAddressId, onAddressViewed }: AddressesPageProps = {}) {
   const {
     collectionName,
     items,
@@ -56,6 +61,21 @@ export default function AddressesPage() {
       setRehydratingSingle(false);
     }
   }, [refetch]);
+
+  // Deep-link: auto-open an address detail when navigated from another page
+  useEffect(() => {
+    if (!initialAddressId) return;
+    (async () => {
+      try {
+        const addr = await addressesApi.get(initialAddressId);
+        setSelected(addr as Address);
+        onAddressViewed?.();
+      } catch {
+        // Address not found — ignore
+        onAddressViewed?.();
+      }
+    })();
+  }, [initialAddressId, onAddressViewed]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

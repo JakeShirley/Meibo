@@ -61,6 +61,7 @@ export default function App() {
   const [linkingFromDetail, setLinkingFromDetail] = useState<Contact | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
+  const [deepLinkAddressId, setDeepLinkAddressId] = useState<string | null>(null);
 
   // Contacts are enriched with _linked from server, so filter on that
   const displayedContacts = linkFilter === "all"
@@ -88,6 +89,13 @@ export default function App() {
     },
     [sortField, sortDir, setSortField, setSortDir, setPage],
   );
+
+  // Deep-link to address detail: switch to Addresses tab and open the address
+  const handleAddressClick = useCallback((addressId: string) => {
+    setSelected(null);
+    setDeepLinkAddressId(addressId);
+    setActiveTab("addresses");
+  }, []);
 
   // Single-call: server fetches PB data, creates vCard, saves link
   const handleCreateAndLink = useCallback(
@@ -231,6 +239,7 @@ export default function App() {
               photoUri={photoMap[selected.id]}
               isLinked={!!selected._linked}
               onLinkCardDav={() => { setLinkingFromDetail(selected); }}
+              onAddressClick={handleAddressClick}
             />
           )}
 
@@ -263,7 +272,12 @@ export default function App() {
         </>
       )}
 
-      {activeTab === "addresses" && <AddressesPage />}
+      {activeTab === "addresses" && (
+        <AddressesPage
+          initialAddressId={deepLinkAddressId}
+          onAddressViewed={() => setDeepLinkAddressId(null)}
+        />
+      )}
 
       {activeTab === "family_sides" && <FamilySidesPage />}
 
