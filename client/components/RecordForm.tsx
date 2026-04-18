@@ -179,6 +179,24 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
       );
     }
 
+    if (f.type === "select") {
+      const options = (f.options?.values as string[] | undefined) ?? [];
+      return (
+        <select
+          value={String(value)}
+          onChange={(e) => handleChange(f.name, e.target.value)}
+          className={inputClass}
+        >
+          {!f.required && <option value="">— None —</option>}
+          {options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
     if (f.type === "number") {
       return (
         <input

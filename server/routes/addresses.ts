@@ -6,6 +6,33 @@ import { pbList, pbGetFullList, pbGetOne, pbCreate, pbUpdate, pbDelete, pbGetCol
 const COLLECTION = "contact_addresses";
 const ADDRESS_FIELDS = ["address_street", "address_city", "address_state", "address_zip", "address_country"];
 
+let cachedCountryValues: string[] | null = null;
+
+async function getCountryValues(): Promise<string[]> {
+  if (cachedCountryValues) return cachedCountryValues;
+  try {
+    const col = await pbGetCollection(COLLECTION);
+    const field = col.schema.find((f) => f.name === "address_country");
+    const values = (field?.options as { values?: string[] })?.values ?? [];
+    cachedCountryValues = values;
+    return values;
+  } catch {
+    return [];
+  }
+}
+
+function matchCountry(mapboxName: string, allowed: string[]): string {
+  if (!mapboxName) return "";
+  const exact = allowed.find((v) => v === mapboxName);
+  if (exact) return exact;
+  const lower = mapboxName.toLowerCase();
+  const startsWith = allowed.find((v) => v.toLowerCase().startsWith(lower));
+  if (startsWith) return startsWith;
+  const includes = allowed.find((v) => v.toLowerCase().includes(lower));
+  if (includes) return includes;
+  return mapboxName;
+}
+
 async function geocodeFromBody(body: Record<string, unknown>): Promise<GeoResult | null> {
   const parts = ADDRESS_FIELDS.map((k) => String(body[k] ?? "")).filter(Boolean);
   if (parts.length === 0) return null;
@@ -91,6 +118,8 @@ export async function createAddress(req: Request, res: Response) {
     const record = await pbCreate(COLLECTION, req.body);
 
     if (geo?.suggested_address && geo.match_code) {
+      const countryValues = await getCountryValues();
+      geo.suggested_address.country = matchCountry(geo.suggested_address.country, countryValues);
       (record as Record<string, unknown>)._geocode = {
         confidence: geo.match_code.confidence,
         match_code: geo.match_code,
@@ -113,6 +142,8 @@ export async function updateAddress(req: Request, res: Response) {
     const record = await pbUpdate(COLLECTION, req.params.id, req.body);
 
     if (geo?.suggested_address && geo.match_code) {
+      const countryValues = await getCountryValues();
+      geo.suggested_address.country = matchCountry(geo.suggested_address.country, countryValues);
       (record as Record<string, unknown>)._geocode = {
         confidence: geo.match_code.confidence,
         match_code: geo.match_code,
