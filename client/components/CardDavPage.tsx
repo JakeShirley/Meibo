@@ -15,19 +15,22 @@ export default function CardDavPage() {
   const [search, setSearch] = useState("");
   const [linking, setLinking] = useState<CardDavContact | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
+  const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const filtered = search
-    ? contacts.filter((c) => {
-        const q = search.toLowerCase();
-        return (
-          c.fn.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          c.tel.toLowerCase().includes(q) ||
-          c.org.toLowerCase().includes(q)
-        );
-      })
-    : contacts;
+  const filtered = contacts.filter((c) => {
+    const isLinked = !!getPbIdForHref(c.href);
+    if (linkFilter === "linked" && !isLinked) return false;
+    if (linkFilter === "unlinked" && isLinked) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      c.fn.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q) ||
+      c.tel.toLowerCase().includes(q) ||
+      c.org.toLowerCase().includes(q)
+    );
+  });
 
   const handleLink = async (pbId: string, merged: MergedFields) => {
     if (!linking) return;
@@ -211,6 +214,22 @@ export default function CardDavPage() {
         >
           + Create CardDAV Contact
         </button>
+        <div className="flex items-center overflow-hidden rounded-md border border-border text-sm">
+          {(["all", "linked", "unlinked"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setLinkFilter(v)}
+              className={`px-2.5 py-1 capitalize transition-colors first:rounded-l-md last:rounded-r-md ${
+                linkFilter === v
+                  ? "bg-primary text-white"
+                  : "text-text-secondary hover:bg-surface-hover"
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
       </div>
 
       {(error || actionError) && (
