@@ -79,12 +79,17 @@ export interface Contact {
   [key: string]: unknown;
 }
 
-export interface MapPin {
+export interface MapPinResident {
   id: string;
   name: string;
+}
+
+export interface MapPin {
   lat: number;
   lon: number;
   address: string;
+  addressId: string;
+  residents: MapPinResident[];
 }
 
 export interface CardDavContact {

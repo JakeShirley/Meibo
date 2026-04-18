@@ -2,18 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { contacts as contactsApi, type MapPin } from "../lib/api.ts";
-import ContactDetail from "./ContactDetail.tsx";
 
-interface Record {
-  id: string;
-  [key: string]: unknown;
+interface Props {
+  onContactSelect: (contactId: string) => void;
+  onAddressSelect: (addressId: string) => void;
 }
 
-export default function MapPage() {
+export default function MapPage({ onContactSelect, onAddressSelect }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapped, setMapped] = useState<MapPin[]>([]);
-  const [selected, setSelected] = useState<Record | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
@@ -51,15 +49,36 @@ export default function MapPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // Update markers
+  // Update markers — use a ref to the click handler so popups can call it
+  const onContactSelectRef = useRef(onContactSelect);
+  onContactSelectRef.current = onContactSelect;
+  const onAddressSelectRef = useRef(onAddressSelect);
+  onAddressSelectRef.current = onAddressSelect;
+
   useEffect(() => {
     if (!leafletMap.current || !markersRef.current) return;
     markersRef.current.clearLayers();
 
+    // Expose global handlers that popup links can call
+    (window as unknown as Record<string, unknown>).__mapResidentClick = (id: string) => {
+      onContactSelectRef.current(id);
+    };
+    (window as unknown as Record<string, unknown>).__mapAddressClick = (id: string) => {
+      onAddressSelectRef.current(id);
+    };
+
     for (const pin of mapped) {
-      const marker = L.marker([pin.lat, pin.lon])
-        .bindPopup(`<b>${pin.name}</b><br/>${pin.address}`)
-        .on("click", () => setSelected({ id: pin.id, name: pin.name } as Record));
+      const residentLinks = pin.residents
+        .map((r) => `<a href="#" onclick="event.preventDefault();window.__mapResidentClick('${r.id}')" style="color:var(--color-primary, #3b82f6);text-decoration:underline;cursor:pointer">${escapeHtml(r.name)}</a>`)
+        .join("<br/>");
+
+      const popupHtml = `<div style="font-size:13px;line-height:1.5">
+        <div style="font-weight:600;margin-bottom:4px">Residents</div>
+        ${residentLinks}
+        <div style="margin-top:6px;font-size:11px"><a href="#" onclick="event.preventDefault();window.__mapAddressClick('${pin.addressId}')" style="color:#888;text-decoration:underline;text-decoration-color:rgba(136,136,136,0.3);cursor:pointer">${escapeHtml(pin.address)}</a></div>
+      </div>`;
+
+      const marker = L.marker([pin.lat, pin.lon]).bindPopup(popupHtml);
       markersRef.current.addLayer(marker);
     }
 
@@ -67,7 +86,15 @@ export default function MapPage() {
       const bounds = L.latLngBounds(mapped.map((p) => [p.lat, p.lon]));
       leafletMap.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
     }
+
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__mapResidentClick;
+      delete (window as unknown as Record<string, unknown>).__mapAddressClick;
+    };
   }, [mapped]);
+
+  // Count total residents across all pins
+  const totalResidents = mapped.reduce((sum, p) => sum + p.residents.length, 0);
 
   return (
     <>
@@ -91,16 +118,13 @@ export default function MapPage() {
       />
 
       <div className="mt-2 text-xs text-text-muted">
-        {mapped.length} contact{mapped.length !== 1 ? "s" : ""} mapped
+        {totalResidents} contact{totalResidents !== 1 ? "s" : ""} across {mapped.length} address{mapped.length !== 1 ? "es" : ""} mapped
       </div>
 
-      {selected && (
-        <ContactDetail
-          contact={selected}
-          fields={[]}
-          onClose={() => setSelected(null)}
-        />
-      )}
     </>
   );
+}
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }

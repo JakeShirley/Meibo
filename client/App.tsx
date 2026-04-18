@@ -97,6 +97,17 @@ export default function App() {
     setActiveTab("addresses");
   }, []);
 
+  // Deep-link to contact detail: switch to Contacts tab and open the contact
+  const handleContactDeepLink = useCallback(async (contactId: string) => {
+    setActiveTab("contacts");
+    try {
+      const contact = await contactsApi.get(contactId);
+      setSelected(contact);
+    } catch (err) {
+      console.error("[DeepLink] Failed to load contact:", err);
+    }
+  }, []);
+
   // Single-call: server fetches PB data, creates vCard, saves link
   const handleCreateAndLink = useCallback(
     async (contact: Contact) => {
@@ -281,7 +292,7 @@ export default function App() {
 
       {activeTab === "family_sides" && <FamilySidesPage />}
 
-      {activeTab === "map" && <MapPage />}
+      {activeTab === "map" && <MapPage onContactSelect={handleContactDeepLink} onAddressSelect={handleAddressClick} />}
 
       {activeTab === "carddav" && <CardDavPage />}
     </div>
