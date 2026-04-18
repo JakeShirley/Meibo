@@ -35,7 +35,7 @@ export function useLinks() {
 
   const syncToRadicale = useCallback(async (
     carddavHref: string,
-    fields: { fn?: string; firstName?: string; lastName?: string; email?: string; tel?: string; org?: string; adrStreet?: string; adrCity?: string; adrState?: string; adrZip?: string; adrCountry?: string },
+    fields: { fn?: string; firstName?: string; lastName?: string; email?: string; tel?: string; org?: string; adrStreet?: string; adrCity?: string; adrState?: string; adrZip?: string; adrCountry?: string; bdayYear?: number; bdayMonth?: number; bdayDay?: number },
     existingRaw?: string,
     etag?: string,
   ) => {
