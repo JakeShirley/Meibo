@@ -31,28 +31,28 @@ export async function getContacts(req: Request, res: Response) {
 
 // ── Link CRUD ───────────────────────────────────────────────────────
 
-export function getLinks(_req: Request, res: Response) {
-  res.json(loadLinks());
+export async function getLinks(_req: Request, res: Response) {
+  res.json(await loadLinks());
 }
 
-export function createLink(req: Request, res: Response) {
+export async function createLink(req: Request, res: Response) {
   const { pbId, carddavHref } = req.body as { pbId?: string; carddavHref?: string };
   if (!pbId || !carddavHref) {
     res.status(400).json({ error: "Missing pbId or carddavHref" });
     return;
   }
-  setLink(pbId, carddavHref);
+  await setLink(pbId, carddavHref);
   console.log(`[Links] Linked PB:${pbId} ↔ CardDAV:${carddavHref}`);
   res.json({ ok: true });
 }
 
-export function deleteLink(req: Request, res: Response) {
+export async function deleteLink(req: Request, res: Response) {
   const { pbId } = req.params;
   if (!pbId) {
     res.status(400).json({ error: "Missing pbId" });
     return;
   }
-  removeLink(pbId);
+  await removeLink(pbId);
   console.log(`[Links] Unlinked PB:${pbId}`);
   res.json({ ok: true });
 }
