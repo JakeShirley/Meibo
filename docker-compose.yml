@@ -1,0 +1,47 @@
+# Example Docker Compose stack: Contact Book app + PocketBase.
+#
+# Quick start:
+#   1. cp .env.example .env  and fill in values (PB_ADMIN_EMAIL, PB_ADMIN_PASSWORD, MAPBOX_ACCESS_TOKEN)
+#   2. docker compose up -d
+#   3. Open http://localhost:3001 for the app, http://localhost:8090/_/ for PocketBase admin
+#
+# To use the prebuilt image from GHCR instead of building locally, replace
+# the `build: .` line under the `app` service with:
+#     image: ghcr.io/jakeshirley/contactbook:latest
+
+services:
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    container_name: contact_book_pocketbase
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - pb_data:/pb_data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: ghcr.io/jakeshirley/contactbook:latest
+    # To build locally instead of pulling from GHCR, comment out `image` above
+    # and uncomment the line below:
+    # build: .
+    container_name: contact_book_app
+    restart: unless-stopped
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "3001"
+      POCKETBASE_URL: "http://pocketbase:8090"
+      PB_ADMIN_EMAIL: "${PB_ADMIN_EMAIL}"
+      PB_ADMIN_PASSWORD: "${PB_ADMIN_PASSWORD}"
+      MAPBOX_ACCESS_TOKEN: "${MAPBOX_ACCESS_TOKEN}"
+    ports:
+      - "3001:3001"
+
+volumes:
+  pb_data:
