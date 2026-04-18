@@ -12,8 +12,8 @@ interface Record {
 }
 
 export default function FamilySidesPage() {
-  const contacts = useCollection<Record>("contacts");
-  const tags = useCollection<Record>("group_tags");
+  const contacts = useCollection<Record>("contacts", { perPage: 500 });
+  const tags = useCollection<Record>("group_tags", { perPage: 200 });
 
   const [selected, setSelected] = useState<Record | null>(null);
   const [editingContact, setEditingContact] = useState<Record | null | "new">(null);
@@ -44,25 +44,29 @@ export default function FamilySidesPage() {
   const grouped = useMemo(() => {
     const groups = new Map<string, Record[]>();
 
-    // Seed with all known tags so empty ones still appear
+    // Build a lookup from tag ID to tag name
+    const tagIdToName = new Map<string, string>();
     for (const tag of tags.items) {
       const name = String(tag.name ?? "").trim();
-      if (name) groups.set(name, []);
+      if (name) {
+        tagIdToName.set(tag.id, name);
+        groups.set(name, []);
+      }
     }
 
     for (const item of filtered) {
-      const side = String(item[familySideField] ?? "").trim() || "Unassigned";
+      // group_tag may be a raw ID (relation field) — resolve to tag name
+      const rawValue = String(item[familySideField] ?? "").trim();
+      // Try dot-notation expanded name first, then ID lookup, then raw value
+      const tagName = String(item[`${familySideField}.name`] ?? "").trim()
+        || tagIdToName.get(rawValue)
+        || "";
+      const side = tagName || "Unassigned";
       if (!groups.has(side)) groups.set(side, []);
       groups.get(side)!.push(item);
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [filtered, familySideField, tags.items]);
-
-  useEffect(() => {
-    if (grouped.length > 0 && expandedSide === null) {
-      setExpandedSide(grouped[0][0]);
-    }
-  }, [grouped, expandedSide]);
 
   const detailFields = useMemo(() => {
     return contacts.fields.filter((f) => f.name !== familySideField);
