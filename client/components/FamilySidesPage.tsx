@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useCollection } from "../hooks/useCollection.ts";
 import { contacts as contactsApi } from "../lib/api.ts";
 import ContactDetail from "./ContactDetail.tsx";
