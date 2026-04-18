@@ -59,6 +59,11 @@ export default function App() {
   const [selected, setSelected] = useState<Contact | null>(null);
   const [editing, setEditing] = useState<Contact | null | "new">(null);
   const [searchInput, setSearchInput] = useState("");
+  const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
+
+  const displayedContacts = linkFilter === "all"
+    ? contacts
+    : contacts.filter((c) => linkFilter === "linked" ? linkedIds.has(c.id) : !linkedIds.has(c.id));
 
   // Debounce search input
   useEffect(() => {
@@ -134,6 +139,22 @@ export default function App() {
               >
                 + Add
               </button>
+              <div className="flex items-center overflow-hidden rounded-md border border-border text-sm">
+                {(["all", "linked", "unlinked"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setLinkFilter(v)}
+                    className={`px-2.5 py-1 capitalize transition-colors first:rounded-l-md last:rounded-r-md ${
+                      linkFilter === v
+                        ? "bg-primary text-white"
+                        : "text-text-secondary hover:bg-surface-hover"
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
             </div>
             <ExportButtons fetchAll={fetchAll} />
           </div>
@@ -151,7 +172,7 @@ export default function App() {
           ) : (
             <>
               <ContactsTable
-                contacts={contacts}
+                contacts={displayedContacts}
                 fields={displayFields.tableFields}
                 sortField={sortField}
                 sortDir={sortDir}
