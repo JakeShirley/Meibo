@@ -48,7 +48,27 @@ export default function CardDavPage() {
         phone_number: pbPhone,
       });
 
-      // 2. Update Radicale vCard
+      // 2. Update Radicale vCard — parse address back to components
+      const addrSource = merged.address;
+      // If address came from CardDAV, use the original structured fields; otherwise parse the comma string
+      const useOriginalAddr = addrSource === [linking.adrStreet, linking.adrCity, linking.adrState, linking.adrZip, linking.adrCountry].filter(Boolean).join(", ");
+      let adrStreet = "", adrCity = "", adrState = "", adrZip = "", adrCountry = "";
+      if (useOriginalAddr) {
+        adrStreet = linking.adrStreet;
+        adrCity = linking.adrCity;
+        adrState = linking.adrState;
+        adrZip = linking.adrZip;
+        adrCountry = linking.adrCountry;
+      } else if (addrSource) {
+        // Best-effort parse: street, city, state, zip, country
+        const parts = addrSource.split(",").map((s: string) => s.trim());
+        adrStreet = parts[0] || "";
+        adrCity = parts[1] || "";
+        adrState = parts[2] || "";
+        adrZip = parts[3] || "";
+        adrCountry = parts[4] || "";
+      }
+
       await syncToRadicale(
         linking.href,
         {
@@ -57,6 +77,11 @@ export default function CardDavPage() {
           lastName: merged.last_name,
           email: merged.email,
           tel: merged.phone_number,
+          adrStreet,
+          adrCity,
+          adrState,
+          adrZip,
+          adrCountry,
         },
         linking.raw,
         linking.etag,
@@ -163,7 +188,16 @@ export default function CardDavPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 font-medium text-text">
-                        {c.fn || "—"}
+                        <div className="flex items-center gap-2">
+                          {c.photoUri ? (
+                            <img src={c.photoUri} alt="" className="h-7 w-7 rounded-full object-cover" />
+                          ) : (
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-light text-xs font-bold text-primary-text">
+                              {(c.fn || "?")[0]}
+                            </span>
+                          )}
+                          {c.fn || "—"}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-text-secondary">
                         {c.email || "—"}
@@ -245,15 +279,24 @@ function VCardDetail({
           ✕
         </button>
 
-        <div className="mb-1 flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-text">
-            {contact.fn || "Unnamed"}
-          </h2>
+        <div className="mb-1 flex items-center gap-3">
+          {contact.photoUri ? (
+            <img src={contact.photoUri} alt="" className="h-14 w-14 rounded-full object-cover" />
+          ) : (
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-light text-xl font-bold text-primary-text">
+              {(contact.fn || "?")[0]}
+            </span>
+          )}
+          <div>
+            <h2 className="text-lg font-semibold text-text">
+              {contact.fn || "Unnamed"}
+            </h2>
           {linkedPbId && (
             <span className="rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-text">
               🔗 Linked
             </span>
           )}
+          </div>
         </div>
         <p className="mb-4 text-sm text-text-muted">{contact.href}</p>
 
@@ -278,6 +321,14 @@ function VCardDetail({
               <dd className="text-sm text-text">{contact.org}</dd>
             </div>
           )}
+          {(contact.adrStreet || contact.adrCity) && (
+            <div>
+              <dt className="text-xs font-medium text-text-muted">Address</dt>
+              <dd className="text-sm text-text">
+                {[contact.adrStreet, contact.adrCity, contact.adrState, contact.adrZip, contact.adrCountry].filter(Boolean).join(", ")}
+              </dd>
+            </div>
+          )}
         </dl>
 
         <details className="group mb-4">
@@ -285,7 +336,7 @@ function VCardDetail({
             Raw vCard
           </summary>
           <pre className="overflow-x-auto rounded-md bg-surface p-3 text-xs text-text-secondary">
-            {contact.raw}
+            {contact.raw.replace(/^PHOTO[;:][\s\S]*?(?=\r?\n[A-Z])/im, "PHOTO:(binary data omitted)")}
           </pre>
         </details>
 

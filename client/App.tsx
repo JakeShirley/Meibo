@@ -181,14 +181,24 @@ export default function App() {
                       // Re-fetch the updated record to get current values
                       const { default: pb, ensureAuthenticated } = await import("./lib/pocketbase.ts");
                       await ensureAuthenticated();
-                      const updated = await pb.collection(collectionName).getOne(String(editing.id));
+                      const updated = await pb.collection(collectionName).getOne(String(editing.id), { expand: "current_address" });
                       const fn = [updated.first_name, updated.last_name].filter(Boolean).join(" ");
+                      // Get address from expanded relation
+                      const addr = (updated as Record<string, unknown>).expand as Record<string, Record<string, unknown>> | undefined;
+                      const ca = addr?.current_address;
                       await syncToRadicale(href, {
                         fn,
                         firstName: String(updated.first_name ?? ""),
                         lastName: String(updated.last_name ?? ""),
                         email: String(updated.email ?? ""),
                         tel: String(updated.phone_number ?? ""),
+                        ...(ca ? {
+                          adrStreet: String(ca.address_street ?? ""),
+                          adrCity: String(ca.address_city ?? ""),
+                          adrState: String(ca.address_state ?? ""),
+                          adrZip: String(ca.address_zip ?? ""),
+                          adrCountry: String(ca.address_country ?? ""),
+                        } : {}),
                       });
                     } catch (err) {
                       console.error("[Sync] Failed to sync to Radicale:", err);
