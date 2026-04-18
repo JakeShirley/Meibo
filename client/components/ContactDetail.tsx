@@ -26,6 +26,7 @@ interface Props {
   photoUri?: string;
   isLinked?: boolean;
   onLinkCardDav?: () => void;
+  onAddressClick?: (addressId: string) => void;
 }
 
 function toLabel(name: string): string {
@@ -34,7 +35,7 @@ function toLabel(name: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating, photoUri, isLinked, onLinkCardDav }: Props) {
+export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating, photoUri, isLinked, onLinkCardDav, onAddressClick }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -43,11 +44,51 @@ export default function ContactDetail({ contact, fields, onClose, onEdit, onRehy
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const displayFields = fields.length > 0
-    ? fields.map((f) => ({ key: f.name, label: toLabel(f.name) }))
-    : Object.keys(contact)
-        .filter((k) => !["id", "collectionId", "collectionName", "created", "updated"].includes(k))
-        .map((k) => ({ key: k, label: toLabel(k) }));
+  // Expand relation_composed fields into sub-fields from the contact data
+  const SKIP_KEYS = new Set(["id", "collectionId", "collectionName", "created", "updated", "expand",
+    "_linked", "_photoUri", "_carddavHref"]);
+  const SKIP_SUB_KEYS = new Set(["latitude", "longitude"]);
+
+  const expandedFields: { key: string; label: string; type?: string }[] = [];
+  if (fields.length > 0) {
+    for (const f of fields) {
+      if (f.type === "relation_composed") {
+        // Find dot-notation sub-fields in the contact data for this relation
+        const prefix = `${f.name}.`;
+        const subKeys = Object.keys(contact).filter(
+          (k) => k.startsWith(prefix) && !SKIP_SUB_KEYS.has(k.slice(prefix.length)),
+        );
+        if (subKeys.length === 1) {
+            // Single sub-field (e.g. group_tag.name) — use the relation's own label
+            expandedFields.push({ key: subKeys[0], label: toLabel(f.name), type: f.name === "current_address" ? "address_sub" : undefined });
+          } else if (subKeys.length > 1) {
+          for (const k of subKeys) {
+            expandedFields.push({ key: k, label: toLabel(k.slice(prefix.length)), type: f.name === "current_address" ? "address_sub" : undefined });
+          }
+        } else {
+          // No expanded sub-fields — show the raw relation ID
+          expandedFields.push({ key: f.name, label: toLabel(f.name) });
+        }
+      } else {
+        expandedFields.push({ key: f.name, label: toLabel(f.name) });
+      }
+    }
+  } else {
+    for (const k of Object.keys(contact)) {
+      if (!SKIP_KEYS.has(k)) expandedFields.push({ key: k, label: toLabel(k) });
+    }
+  }
+
+  // Separate address fields from other fields
+  const addressSubFields = expandedFields.filter((f) => f.type === "address_sub");
+  const nonAddressFields = expandedFields.filter((f) => f.type !== "address_sub");
+
+  // Build a combined address string from the address sub-fields
+  const addressId = contact.current_address ? String(contact.current_address) : null;
+  const addressParts = addressSubFields
+    .map((f) => String(contact[f.key] ?? ""))
+    .filter(Boolean);
+  const addressDisplay = addressParts.length > 0 ? addressParts.join(", ") : null;
 
   // Extract lat/lon for map
   const lat = Number(contact.latitude ?? contact["current_address.latitude"] ?? 0);
@@ -92,7 +133,7 @@ export default function ContactDetail({ contact, fields, onClose, onEdit, onRehy
         <div className={`${hasCoords ? "flex gap-6" : ""}`}>
           <div className={`${hasCoords ? "flex-1 min-w-0" : ""}`}>
             <dl className="space-y-3">
-              {displayFields.map((f) => (
+              {nonAddressFields.map((f) => (
                 <div key={f.key} className="flex gap-3">
                   <dt className="w-24 shrink-0 text-sm font-medium text-text-muted">
                     {f.label}
@@ -102,6 +143,26 @@ export default function ContactDetail({ contact, fields, onClose, onEdit, onRehy
                   </dd>
                 </div>
               ))}
+              {addressDisplay && (
+                <div className="flex gap-3">
+                  <dt className="w-24 shrink-0 text-sm font-medium text-text-muted">
+                    Address
+                  </dt>
+                  <dd className="text-sm text-text">
+                    {onAddressClick && addressId ? (
+                      <button
+                        type="button"
+                        onClick={() => onAddressClick(addressId)}
+                        className="text-left text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+                      >
+                        {addressDisplay}
+                      </button>
+                    ) : (
+                      addressDisplay
+                    )}
+                  </dd>
+                </div>
+              )}
             </dl>
           </div>
 
