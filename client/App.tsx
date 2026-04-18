@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useContacts } from "./hooks/useContacts.ts";
+import { useLinks } from "./hooks/useLinks.ts";
 import ContactsTable from "./components/ContactsTable.tsx";
 import ContactDetail from "./components/ContactDetail.tsx";
 import RecordForm from "./components/RecordForm.tsx";
@@ -12,9 +13,10 @@ import ThemeToggle from "./components/ThemeToggle.tsx";
 import FallingPetals from "./components/FallingPetals.tsx";
 import PixelTrees from "./components/PixelTrees.tsx";
 import MapPage from "./components/MapPage.tsx";
+import CardDavPage from "./components/CardDavPage.tsx";
 import type { Contact } from "./types/contact.ts";
 
-type Tab = "contacts" | "addresses" | "family_sides" | "map";
+type Tab = "contacts" | "addresses" | "family_sides" | "map" | "carddav";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("contacts");
@@ -38,6 +40,9 @@ export default function App() {
     fetchAll,
     refetch,
   } = useContacts();
+
+  const { links, syncToRadicale, getHrefForPbId } = useLinks();
+  const linkedIds = useMemo(() => new Set(Object.keys(links)), [links]);
 
   const [selected, setSelected] = useState<Contact | null>(null);
   const [editing, setEditing] = useState<Contact | null | "new">(null);
@@ -70,6 +75,7 @@ export default function App() {
     { key: "addresses", label: "Addresses" },
     { key: "family_sides", label: "Group Tags" },
     { key: "map", label: "Map" },
+    { key: "carddav", label: "CardDAV" },
   ];
 
   return (
@@ -139,6 +145,7 @@ export default function App() {
                 sortDir={sortDir}
                 onSort={handleSort}
                 onSelect={setSelected}
+                linkedIds={linkedIds}
               />
               <div className="mt-4">
                 <Pagination
@@ -165,7 +172,32 @@ export default function App() {
               collection={collectionName}
               fields={rawSchema}
               record={editing === "new" ? null : editing}
-              onSave={() => { setEditing(null); refetch(); }}
+              onSave={async () => {
+                // If the contact is linked to CardDAV, sync changes
+                if (editing && editing !== "new") {
+                  const href = getHrefForPbId(String(editing.id));
+                  if (href) {
+                    try {
+                      // Re-fetch the updated record to get current values
+                      const { default: pb, ensureAuthenticated } = await import("./lib/pocketbase.ts");
+                      await ensureAuthenticated();
+                      const updated = await pb.collection(collectionName).getOne(String(editing.id));
+                      const fn = [updated.first_name, updated.last_name].filter(Boolean).join(" ");
+                      await syncToRadicale(href, {
+                        fn,
+                        firstName: String(updated.first_name ?? ""),
+                        lastName: String(updated.last_name ?? ""),
+                        email: String(updated.email ?? ""),
+                        tel: String(updated.phone_number ?? ""),
+                      });
+                    } catch (err) {
+                      console.error("[Sync] Failed to sync to Radicale:", err);
+                    }
+                  }
+                }
+                setEditing(null);
+                refetch();
+              }}
               onClose={() => setEditing(null)}
               onDelete={() => { setEditing(null); refetch(); }}
             />
@@ -178,6 +210,8 @@ export default function App() {
       {activeTab === "family_sides" && <FamilySidesPage />}
 
       {activeTab === "map" && <MapPage />}
+
+      {activeTab === "carddav" && <CardDavPage />}
     </div>
     </>
   );

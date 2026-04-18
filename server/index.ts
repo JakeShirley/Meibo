@@ -7,14 +7,24 @@ import { config } from "./config.js";
 import { handleAuth } from "./routes/auth.js";
 import { handleGeocode } from "./routes/geocode.js";
 import { createAddress, updateAddress, rehydrateAddresses, rehydrateOne } from "./routes/addresses.js";
+import { getAddressBooks, getContacts, getLinks, createLink, deleteLink, syncToRadicale } from "./routes/carddav.js";
 import { pbProxy } from "./middleware/pbProxy.js";
 
 const app = express();
 const jsonParser = express.json();
+const jsonParserLarge = express.json({ limit: "10mb" });
 
 // Custom API routes (handled before the PB proxy catch-all)
 app.get("/api/geocode", handleGeocode);
 app.post("/api/server/auth", handleAuth);
+
+// CardDAV / Radicale routes
+app.get("/api/carddav/address-books", getAddressBooks);
+app.get("/api/carddav/contacts", getContacts);
+app.get("/api/carddav/links", getLinks);
+app.post("/api/carddav/links", jsonParser, createLink);
+app.delete("/api/carddav/links/:pbId", deleteLink);
+app.post("/api/carddav/sync", jsonParserLarge, syncToRadicale);
 app.post("/api/collections/contact_addresses/records", jsonParser, createAddress);
 app.patch("/api/collections/contact_addresses/records/:id", jsonParser, updateAddress);
 app.post("/api/server/rehydrate-addresses", rehydrateAddresses);
