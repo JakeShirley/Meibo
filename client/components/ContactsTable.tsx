@@ -26,9 +26,12 @@ function getCellValue(contact: Contact, col: { key: string; type: string }): str
   if (col.type === "relation_composed") {
     // First check for dot-notation sub-fields (from useContacts flattening)
     const prefix = `${col.key}.`;
+    const skip = new Set(["latitude", "longitude"]);
     const parts: string[] = [];
     for (const [k, v] of Object.entries(contact)) {
       if (k.startsWith(prefix) && v) {
+        const subField = k.slice(prefix.length);
+        if (skip.has(subField)) continue;
         parts.push(String(v));
       }
     }
