@@ -273,6 +273,34 @@ export function buildVCard(fields: VCardFields, existingRaw?: string): string {
   return lines.join("\r\n");
 }
 
+// ── Create a brand-new vCard on Radicale ────────────────────────────
+export async function createNewVCard(
+  addressBookHref: string,
+  fields: VCardFields,
+): Promise<{ href: string }> {
+  const uid = fields.uid || crypto.randomUUID();
+  const href = `${addressBookHref.replace(/\/+$/, "")}/${uid}.vcf`;
+  const vcard = buildVCard({ ...fields, uid });
+
+  const base = config.radicaleUrl.replace(/\/+$/, "");
+  const url = `${base}${href.startsWith("/") ? "" : "/"}${href}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "text/vcard; charset=utf-8",
+    "If-None-Match": "*", // fail if it already exists
+  };
+  const auth = authHeader();
+  if (auth) headers.Authorization = auth;
+
+  console.log(`[CardDAV] PUT (create) ${url}`);
+  const res = await fetch(url, { method: "PUT", headers, body: vcard });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`CardDAV PUT (create) ${href} failed (${res.status}): ${text}`);
+  }
+  console.log(`[CardDAV] Created ${href} → ${res.status}`);
+  return { href };
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 /** Extract birthday from vCard BDAY field */

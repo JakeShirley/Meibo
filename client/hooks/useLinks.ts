@@ -50,6 +50,22 @@ export function useLinks() {
     }
   }, []);
 
+  const createCardDavContact = useCallback(async (
+    book: string,
+    fields: { fn?: string; firstName?: string; lastName?: string; email?: string; tel?: string; org?: string; adrStreet?: string; adrCity?: string; adrState?: string; adrZip?: string; adrCountry?: string; bdayYear?: number; bdayMonth?: number; bdayDay?: number },
+  ): Promise<{ href: string }> => {
+    const res = await fetch("/api/carddav/contacts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ book, fields }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: "Create failed" }));
+      throw new Error(data.error || "Create failed");
+    }
+    return res.json();
+  }, []);
+
   // Helper lookups
   const getHrefForPbId = useCallback((pbId: string) => links[pbId], [links]);
   const getPbIdForHref = useCallback((href: string) => {
@@ -59,5 +75,5 @@ export function useLinks() {
     return undefined;
   }, [links]);
 
-  return { links, createLink, removeLink, syncToRadicale, getHrefForPbId, getPbIdForHref, refetch: fetchLinks };
+  return { links, createLink, removeLink, syncToRadicale, createCardDavContact, getHrefForPbId, getPbIdForHref, refetch: fetchLinks };
 }

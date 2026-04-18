@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { listAddressBooks, listContacts, updateVCard, buildVCard, fetchVCard, type VCardFields } from "../services/carddav.js";
+import { listAddressBooks, listContacts, updateVCard, buildVCard, fetchVCard, createNewVCard, type VCardFields } from "../services/carddav.js";
 import { loadLinks, setLink, removeLink } from "../services/links.js";
 
 export async function getAddressBooks(_req: Request, res: Response) {
@@ -58,6 +58,22 @@ export function deleteLink(req: Request, res: Response) {
 }
 
 // ── Sync: push merged fields to Radicale ────────────────────────────
+
+export async function createContact(req: Request, res: Response) {
+  const { book, fields } = req.body as { book?: string; fields?: VCardFields };
+  if (!book || !fields) {
+    res.status(400).json({ error: "Missing book or fields" });
+    return;
+  }
+  try {
+    const { href } = await createNewVCard(book, fields);
+    res.json({ ok: true, href });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[CardDAV] createContact error:", message);
+    res.status(502).json({ error: message });
+  }
+}
 
 export async function syncToRadicale(req: Request, res: Response) {
   const { carddavHref, fields, existingRaw, etag } = req.body as {

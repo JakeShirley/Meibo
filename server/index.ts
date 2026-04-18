@@ -7,7 +7,7 @@ import { config } from "./config.js";
 import { handleAuth } from "./routes/auth.js";
 import { handleGeocode } from "./routes/geocode.js";
 import { createAddress, updateAddress, rehydrateAddresses, rehydrateOne } from "./routes/addresses.js";
-import { getAddressBooks, getContacts, getLinks, createLink, deleteLink, syncToRadicale } from "./routes/carddav.js";
+import { getAddressBooks, getContacts, getLinks, createLink, deleteLink, syncToRadicale, createContact } from "./routes/carddav.js";
 import { pbProxy } from "./middleware/pbProxy.js";
 
 const app = express();
@@ -25,6 +25,7 @@ app.get("/api/carddav/links", getLinks);
 app.post("/api/carddav/links", jsonParser, createLink);
 app.delete("/api/carddav/links/:pbId", deleteLink);
 app.post("/api/carddav/sync", jsonParserLarge, syncToRadicale);
+app.post("/api/carddav/contacts", jsonParser, createContact);
 app.post("/api/collections/contact_addresses/records", jsonParser, createAddress);
 app.patch("/api/collections/contact_addresses/records/:id", jsonParser, updateAddress);
 app.post("/api/server/rehydrate-addresses", rehydrateAddresses);

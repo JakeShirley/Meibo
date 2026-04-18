@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useCardDav, type CardDavContact } from "../hooks/useCardDav.ts";
 import { useLinks } from "../hooks/useLinks.ts";
 import LinkMergeDialog, { type MergedFields } from "./LinkMergeDialog.tsx";
+import CreateCardDavDialog from "./CreateCardDavDialog.tsx";
 import pb, { ensureAuthenticated } from "../lib/pocketbase.ts";
 
 const COLLECTION = import.meta.env.VITE_PB_COLLECTION || "contacts";
@@ -9,10 +10,11 @@ const COLLECTION = import.meta.env.VITE_PB_COLLECTION || "contacts";
 export default function CardDavPage() {
   const { books, selectedBook, setSelectedBook, contacts, loading, error, refetch } =
     useCardDav();
-  const { getPbIdForHref, createLink, removeLink, syncToRadicale } = useLinks();
+  const { links, getPbIdForHref, createLink, removeLink, syncToRadicale, createCardDavContact } = useLinks();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [linking, setLinking] = useState<CardDavContact | null>(null);
+  const [creatingNew, setCreatingNew] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const filtered = search
@@ -122,6 +124,53 @@ export default function CardDavPage() {
     }
   };
 
+  const linkedPbIds = useMemo(() => new Set(Object.keys(links)), [links]);
+
+  const handleCreateCardDav = async (contact: { id: string; [key: string]: unknown }) => {
+    if (!selectedBook) return;
+    setActionError(null);
+    try {
+      const firstName = String(contact.first_name ?? "");
+      const lastName = String(contact.last_name ?? "");
+      const email = String(contact.email ?? "");
+      const phone = String(contact.phone_number ?? "");
+      const bdayMonth = Number(contact.birthday_month ?? 0);
+      const bdayDay = Number(contact.birthday_day ?? 0);
+      const bdayYear = Number(contact.birthday_year ?? 0);
+
+      // Parse address from expanded relation
+      const exp = contact.expand as Record<string, Record<string, unknown>> | undefined;
+      const addr = exp?.current_address;
+      const adrStreet = String(addr?.address_street ?? "");
+      const adrCity = String(addr?.address_city ?? "");
+      const adrState = String(addr?.address_state ?? "");
+      const adrZip = String(addr?.address_zip ?? "");
+      const adrCountry = String(addr?.address_country ?? "");
+
+      const { href } = await createCardDavContact(selectedBook, {
+        fn: `${firstName} ${lastName}`.trim(),
+        firstName,
+        lastName,
+        email,
+        tel: phone,
+        adrStreet,
+        adrCity,
+        adrState,
+        adrZip,
+        adrCountry,
+        bdayMonth,
+        bdayDay,
+        bdayYear,
+      });
+
+      await createLink(String(contact.id), href);
+      setCreatingNew(false);
+      refetch();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   return (
     <div>
       {/* address book selector */}
@@ -144,15 +193,24 @@ export default function CardDavPage() {
         </div>
       )}
 
-      {/* search */}
-      <div className="mb-4 w-full sm:w-72">
-        <input
-          type="text"
-          placeholder="Search CardDAV contacts…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-md border border-input-border bg-surface-alt px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-input-focus focus:outline-none"
-        />
+      {/* search + create */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="w-full sm:w-72">
+          <input
+            type="text"
+            placeholder="Search CardDAV contacts…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-md border border-input-border bg-surface-alt px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-input-focus focus:outline-none"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setCreatingNew(true)}
+          className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+        >
+          + Create CardDAV Contact
+        </button>
       </div>
 
       {(error || actionError) && (
@@ -259,6 +317,15 @@ export default function CardDavPage() {
           carddavContact={linking}
           onLink={handleLink}
           onClose={() => setLinking(null)}
+        />
+      )}
+
+      {/* Create new CardDAV contact dialog */}
+      {creatingNew && (
+        <CreateCardDavDialog
+          linkedPbIds={linkedPbIds}
+          onConfirm={handleCreateCardDav}
+          onClose={() => setCreatingNew(false)}
         />
       )}
     </div>
