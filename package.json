@@ -3,6 +3,17 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "description": "A web app for browsing, editing, and exporting contacts stored in a PocketBase database.",
+  "homepage": "https://github.com/JakeShirley/ContactBook#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JakeShirley/ContactBook.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JakeShirley/ContactBook/issues"
+  },
+  "author": "Jake Shirley",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "dev:server": "tsx watch server/index.ts",
