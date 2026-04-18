@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useContacts } from "./hooks/useContacts.ts";
 import { useLinks } from "./hooks/useLinks.ts";
+import { useCardDav } from "./hooks/useCardDav.ts";
 import ContactsTable from "./components/ContactsTable.tsx";
 import ContactDetail from "./components/ContactDetail.tsx";
 import RecordForm from "./components/RecordForm.tsx";
@@ -43,6 +44,17 @@ export default function App() {
 
   const { links, syncToRadicale, getHrefForPbId } = useLinks();
   const linkedIds = useMemo(() => new Set(Object.keys(links)), [links]);
+
+  // Fetch CardDAV contacts for photo mapping
+  const { contacts: davContacts } = useCardDav();
+  const photoMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const [pbId, href] of Object.entries(links)) {
+      const dav = davContacts.find((c) => c.href === href);
+      if (dav?.photoUri) map[pbId] = dav.photoUri;
+    }
+    return map;
+  }, [links, davContacts]);
 
   const [selected, setSelected] = useState<Contact | null>(null);
   const [editing, setEditing] = useState<Contact | null | "new">(null);
@@ -146,6 +158,7 @@ export default function App() {
                 onSort={handleSort}
                 onSelect={setSelected}
                 linkedIds={linkedIds}
+                photoMap={photoMap}
               />
               <div className="mt-4">
                 <Pagination
@@ -164,6 +177,7 @@ export default function App() {
               fields={displayFields.detailFields}
               onClose={() => setSelected(null)}
               onEdit={() => { setEditing(selected); setSelected(null); }}
+              photoUri={photoMap[selected.id]}
             />
           )}
 

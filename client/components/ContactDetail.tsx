@@ -23,6 +23,7 @@ interface Props {
   onEdit?: () => void;
   onRehydrate?: () => void;
   rehydrating?: boolean;
+  photoUri?: string;
 }
 
 function toLabel(name: string): string {
@@ -31,7 +32,7 @@ function toLabel(name: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating }: Props) {
+export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating, photoUri }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -70,7 +71,12 @@ export default function ContactDetail({ contact, fields, onClose, onEdit, onRehy
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay">
       <div className={`w-full rounded-xl bg-surface-alt p-6 shadow-xl ${hasCoords ? "max-w-3xl" : "max-w-md"}`}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-text">Details</h2>
+          <div className="flex items-center gap-3">
+            {photoUri && (
+              <img src={photoUri} alt="" className="h-12 w-12 rounded-full object-cover" />
+            )}
+            <h2 className="text-lg font-bold text-text">Details</h2>
+          </div>
           <button
             onClick={onClose}
             className="rounded-md p-1 text-text-muted hover:bg-surface-hover hover:text-text-secondary"
