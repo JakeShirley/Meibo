@@ -29,8 +29,10 @@ interface NormalizedField {
 export async function getSchema(collectionName: string): Promise<{ fields: NormalizedField[] }> {
   const col = await pbGetCollection(collectionName);
   const fields: NormalizedField[] = [];
+  const HIDDEN_FIELDS = new Set(["carddav_href"]);
 
   for (const f of col.schema) {
+    if (HIDDEN_FIELDS.has(f.name)) continue;
     const normalized: NormalizedField = {
       name: f.name,
       type: f.type,

@@ -1,52 +1,43 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { pbGetOne, pbUpdate, pbList, pbGetFullList } from "./pb.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LINKS_FILE = path.resolve(process.env.CARDDAV_LINKS_FILE || path.join(__dirname, "..", "..", "data", "carddav-links.json"));
+const COLLECTION = process.env.VITE_PB_COLLECTION || "contacts";
 
 /** pbId → carddav href */
 export type LinkMap = Record<string, string>;
 
-function ensureDir() {
-  const dir = path.dirname(LINKS_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+function esc(val: string): string {
+  return val.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-export function loadLinks(): LinkMap {
-  try {
-    if (!fs.existsSync(LINKS_FILE)) return {};
-    return JSON.parse(fs.readFileSync(LINKS_FILE, "utf-8"));
-  } catch {
-    return {};
+export async function loadLinks(): Promise<LinkMap> {
+  const items = await pbGetFullList(COLLECTION, {
+    filter: 'carddav_href != ""',
+  });
+  const map: LinkMap = {};
+  for (const item of items) {
+    map[String(item.id)] = String(item.carddav_href);
   }
+  return map;
 }
 
-function saveLinks(links: LinkMap) {
-  ensureDir();
-  fs.writeFileSync(LINKS_FILE, JSON.stringify(links, null, 2));
+export async function setLink(pbId: string, carddavHref: string): Promise<void> {
+  await pbUpdate(COLLECTION, pbId, { carddav_href: carddavHref });
 }
 
-export function setLink(pbId: string, carddavHref: string) {
-  const links = loadLinks();
-  links[pbId] = carddavHref;
-  saveLinks(links);
+export async function removeLink(pbId: string): Promise<void> {
+  await pbUpdate(COLLECTION, pbId, { carddav_href: "" });
 }
 
-export function removeLink(pbId: string) {
-  const links = loadLinks();
-  delete links[pbId];
-  saveLinks(links);
+export async function getHrefForPbId(pbId: string): Promise<string | undefined> {
+  const record = await pbGetOne(COLLECTION, pbId);
+  const href = record.carddav_href as string | undefined;
+  return href || undefined;
 }
 
-export function getHrefForPbId(pbId: string): string | undefined {
-  return loadLinks()[pbId];
-}
-
-export function getPbIdForHref(href: string): string | undefined {
-  const links = loadLinks();
-  for (const [pbId, h] of Object.entries(links)) {
-    if (h === href) return pbId;
-  }
-  return undefined;
+export async function getPbIdForHref(href: string): Promise<string | undefined> {
+  const result = await pbList(COLLECTION, {
+    filter: `carddav_href = "${esc(href)}"`,
+    perPage: 1,
+  });
+  return result.items.length > 0 ? String(result.items[0].id) : undefined;
 }
