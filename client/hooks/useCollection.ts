@@ -23,7 +23,8 @@ function getSchemaApi(name: string) {
   return schemaApi.contacts;
 }
 
-export function useCollection<T extends Record = Record>(collectionName: string) {
+export function useCollection<T extends Record = Record>(collectionName: string, opts?: { perPage?: number }) {
+  const perPage = opts?.perPage ?? 25;
   const [items, setItems] = useState<T[]>([]);
   const [fields, setFields] = useState<SchemaField[]>([]);
   const [rawSchema, setRawSchema] = useState<SchemaField[]>([]);
@@ -87,7 +88,7 @@ export function useCollection<T extends Record = Record>(collectionName: string)
       const api = getApi(collectionName);
       const result = await api.list({
         page,
-        perPage: 25,
+        perPage,
         sort,
         search,
       });
