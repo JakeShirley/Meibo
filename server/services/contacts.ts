@@ -9,7 +9,7 @@ import {
   type PBListResult,
   type PBSchemaField,
 } from "./pb.js";
-import { loadLinks, setLink, removeLink, getHrefForPbId } from "./links.js";
+import { loadLinks, setLink, removeLink } from "./links.js";
 import { listContacts, fetchVCard, buildVCard, updateVCard, createNewVCard, type VCardFields } from "./carddav.js";
 import { geocodeAddress } from "./geocode.js";
 
@@ -94,14 +94,30 @@ export async function listContacts_(opts: {
   const schema: PBSchemaField[] = col.schema ?? [];
   const textTypes = new Set(["text", "email", "url", "editor", "plain"]);
   const searchableFields = schema.filter((f) => textTypes.has(f.type)).map((f) => f.name);
-  const expandFields = schema.filter((f) => f.type === "relation").map((f) => f.name);
+  const relationFields = schema.filter((f) => f.type === "relation");
+  const expandFields = relationFields.map((f) => f.name);
 
-  // Build filter from search
-  let filter = "";
+  // Fetch related-collection schemas so we can flatten in field order
+  const relatedFieldOrder: Record<string, string[]> = {};
+  for (const f of relationFields) {
+    const colId = f.options?.collectionId as string | undefined;
+    if (colId) {
+      try {
+        const relCol = await pbGetCollection(colId);
+        relatedFieldOrder[f.name] = relCol.schema.map((sf) => sf.name);
+      } catch { /* skip */ }
+    }
+  }
+
+  // Build filter from search + linked status
+  const filters: string[] = [];
   if (opts.search && searchableFields.length > 0) {
     const escaped = opts.search.replace(/"/g, '\\"');
-    filter = searchableFields.map((f) => `${f} ~ "${escaped}"`).join(" || ");
+    filters.push(`(${searchableFields.map((f) => `${f} ~ "${escaped}"`).join(" || ")})`);
   }
+  if (opts.linked === "linked") filters.push('carddav_href != ""');
+  else if (opts.linked === "unlinked") filters.push('(carddav_href = "" || carddav_href = null)');
+  const filter = filters.join(" && ");
 
   const result = await pbList(COLLECTION, {
     page: opts.page ?? 1,
@@ -111,9 +127,12 @@ export async function listContacts_(opts: {
     expand: expandFields.join(","),
   });
 
-  // Enrich with link status & photos
-  const links = loadLinks();
-  const linkedPbIds = new Set(Object.keys(links));
+  // Build link map from results for photo enrichment
+  const links: Record<string, string> = {};
+  for (const item of result.items) {
+    const href = item.carddav_href as string | undefined;
+    if (href) links[String(item.id)] = href;
+  }
 
   // Build photo map from CardDAV (cached per request)
   let photoMap: Record<string, string> = {};
@@ -142,8 +161,10 @@ export async function listContacts_(opts: {
       for (const relField of expandFields) {
         const related = expand[relField];
         if (related && typeof related === "object" && !Array.isArray(related)) {
-          for (const [key, val] of Object.entries(related)) {
-            if (!SKIP.has(key) && typeof val !== "object") {
+          const keys = relatedFieldOrder[relField] ?? Object.keys(related);
+          for (const key of keys) {
+            const val = (related as Record<string, unknown>)[key];
+            if (val !== undefined && !SKIP.has(key) && typeof val !== "object") {
               flat[`${relField}.${key}`] = val;
             }
           }
@@ -151,22 +172,17 @@ export async function listContacts_(opts: {
       }
     }
 
-    flat._linked = linkedPbIds.has(String(item.id));
+    flat._linked = !!item.carddav_href;
     flat._photoUri = photoMap[String(item.id)] || null;
     return flat;
   });
 
-  // Server-side link filter
-  let filtered = enriched;
-  if (opts.linked === "linked") filtered = enriched.filter((c) => c._linked);
-  else if (opts.linked === "unlinked") filtered = enriched.filter((c) => !c._linked);
-
   return {
-    items: filtered,
+    items: enriched,
     page: result.page,
     perPage: result.perPage,
-    totalItems: opts.linked === "all" || !opts.linked ? result.totalItems : filtered.length,
-    totalPages: opts.linked === "all" || !opts.linked ? result.totalPages : Math.ceil(filtered.length / (opts.perPage ?? 25)),
+    totalItems: result.totalItems,
+    totalPages: result.totalPages,
   };
 }
 
@@ -174,9 +190,22 @@ export async function listContacts_(opts: {
 
 export async function getContact(id: string): Promise<Record<string, unknown>> {
   const col = await pbGetCollection(COLLECTION);
-  const expandFields = col.schema.filter((f) => f.type === "relation").map((f) => f.name);
+  const relationFields = col.schema.filter((f) => f.type === "relation");
+  const expandFields = relationFields.map((f) => f.name);
+
+  // Fetch related-collection schemas for field order
+  const relatedFieldOrder: Record<string, string[]> = {};
+  for (const f of relationFields) {
+    const colId = f.options?.collectionId as string | undefined;
+    if (colId) {
+      try {
+        const relCol = await pbGetCollection(colId);
+        relatedFieldOrder[f.name] = relCol.schema.map((sf) => sf.name);
+      } catch { /* skip */ }
+    }
+  }
+
   const contact = await pbGetOne(COLLECTION, id, expandFields.join(","));
-  const links = loadLinks();
   const flat: Record<string, unknown> = { ...contact };
 
   const expand = contact.expand as Record<string, Record<string, unknown>> | undefined;
@@ -185,8 +214,10 @@ export async function getContact(id: string): Promise<Record<string, unknown>> {
     for (const relField of expandFields) {
       const related = expand[relField];
       if (related && typeof related === "object" && !Array.isArray(related)) {
-        for (const [key, val] of Object.entries(related)) {
-          if (!SKIP.has(key) && typeof val !== "object") {
+        const keys = relatedFieldOrder[relField] ?? Object.keys(related);
+        for (const key of keys) {
+          const val = (related as Record<string, unknown>)[key];
+          if (val !== undefined && !SKIP.has(key) && typeof val !== "object") {
             flat[`${relField}.${key}`] = val;
           }
         }
@@ -194,8 +225,9 @@ export async function getContact(id: string): Promise<Record<string, unknown>> {
     }
   }
 
-  flat._linked = !!links[id];
-  flat._carddavHref = links[id] || null;
+  const href = contact.carddav_href as string | undefined;
+  flat._linked = !!href;
+  flat._carddavHref = href || null;
   return flat;
 }
 
@@ -211,7 +243,7 @@ export async function updateContact(id: string, data: Record<string, unknown>): 
   const updated = await pbUpdate(COLLECTION, id, data);
 
   // Auto-sync to CardDAV if linked
-  const href = getHrefForPbId(id);
+  const href = updated.carddav_href as string | undefined;
   if (href) {
     try {
       await syncContactToCardDav(id, href);
@@ -228,12 +260,7 @@ export async function updateContact(id: string, data: Record<string, unknown>): 
 
 export async function deleteContact(id: string): Promise<void> {
   await pbDelete(COLLECTION, id);
-  // Auto-remove CardDAV link if exists
-  const href = getHrefForPbId(id);
-  if (href) {
-    removeLink(id);
-    console.log(`[Contacts] Auto-removed CardDAV link for deleted contact ${id}`);
-  }
+  // Link is deleted with the contact — no separate cleanup needed
 }
 
 // ── Sync helper ─────────────────────────────────────────────────────
@@ -276,7 +303,7 @@ function extractVCardFields(contact: Record<string, unknown>): VCardFields {
 export async function linkToExisting(pbId: string, carddavHref: string): Promise<void> {
   // Sync PB data → CardDAV
   await syncContactToCardDav(pbId, carddavHref);
-  setLink(pbId, carddavHref);
+  await setLink(pbId, carddavHref);
   console.log(`[Contacts] Linked ${pbId} ↔ ${carddavHref}`);
 }
 
@@ -287,13 +314,13 @@ export async function linkCreateNew(pbId: string, book: string): Promise<{ href:
   const fields = extractVCardFields(contact);
 
   const { href } = await createNewVCard(book, fields);
-  setLink(pbId, href);
+  await setLink(pbId, href);
   console.log(`[Contacts] Created & linked ${pbId} → ${href}`);
   return { href };
 }
 
 export async function unlinkContact(pbId: string): Promise<void> {
-  removeLink(pbId);
+  await removeLink(pbId);
   console.log(`[Contacts] Unlinked ${pbId}`);
 }
 
@@ -390,7 +417,7 @@ export async function mergeAndLink(
   await updateVCard(carddavHref, vcard);
 
   // 3. Save link
-  setLink(pbId, carddavHref);
+  await setLink(pbId, carddavHref);
   console.log(`[Contacts] Merged & linked ${pbId} ↔ ${carddavHref}`);
 }
 
