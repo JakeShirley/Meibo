@@ -14,6 +14,9 @@ export interface CardDavContact {
   adrState: string;
   adrZip: string;
   adrCountry: string;
+  bdayYear: number;
+  bdayMonth: number;
+  bdayDay: number;
   raw: string;
 }
 

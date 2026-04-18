@@ -39,13 +39,25 @@ export default function CardDavPage() {
           ? `${digits.slice(0, 3)}-${digits.slice(3)}`
           : merged.phone_number; // leave as-is if unexpected length
 
-      // 1. Update PocketBase contact
+      // 1. Update PocketBase contact — parse birthday (format: "27 December 1994" or "27 December")
+      let bdayMonth = 0, bdayDay = 0, bdayYear = 0;
+      if (merged.birthday) {
+        const MONTHS: Record<string, number> = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
+        const bp = merged.birthday.split(" ");
+        bdayDay = parseInt(bp[0], 10) || 0;
+        bdayMonth = MONTHS[(bp[1] || "").toLowerCase()] || 0;
+        bdayYear = parseInt(bp[2], 10) || 0;
+      }
+
       await ensureAuthenticated();
       await pb.collection(COLLECTION).update(pbId, {
         first_name: merged.first_name,
         last_name: merged.last_name,
         email: merged.email,
         phone_number: pbPhone,
+        birthday_month: bdayMonth,
+        birthday_day: bdayDay,
+        birthday_year: bdayYear,
       });
 
       // 2. Update Radicale vCard — parse address back to components
@@ -82,6 +94,9 @@ export default function CardDavPage() {
           adrState,
           adrZip,
           adrCountry,
+          bdayMonth,
+          bdayDay,
+          bdayYear,
         },
         linking.raw,
         linking.etag,

@@ -9,13 +9,16 @@ export interface CardDavContact {
   email: string;
   tel: string;
   org: string;
-  photoUri: string; // data URI for embedded photo, or empty
+  photoUri: string;
   adrStreet: string;
   adrCity: string;
   adrState: string;
   adrZip: string;
   adrCountry: string;
-  raw: string; // full vCard text
+  bdayYear: number;
+  bdayMonth: number;
+  bdayDay: number;
+  raw: string;
 }
 
 /** Address book discovered from Radicale */
@@ -115,9 +118,10 @@ export async function listContacts(addressBookHref: string): Promise<CardDavCont
     const vcardMatch = r.match(/<(?:[\w-]+:)?address-data[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?address-data>/i);
     if (!hrefMatch || !vcardMatch) continue;
 
-    const raw = decodeXmlEntities(vcardMatch[1].trim());
+    const raw = unfoldVCard(decodeXmlEntities(vcardMatch[1].trim()));
     const photoUri = extractPhoto(raw);
     const adr = extractAdr(raw);
+    const bday = extractBday(raw);
     contacts.push({
       uid: extractVCardField(raw, "UID") || hrefMatch[1],
       href: hrefMatch[1],
@@ -132,6 +136,9 @@ export async function listContacts(addressBookHref: string): Promise<CardDavCont
       adrState: adr.state,
       adrZip: adr.zip,
       adrCountry: adr.country,
+      bdayYear: bday.year,
+      bdayMonth: bday.month,
+      bdayDay: bday.day,
       raw,
     });
   }
@@ -189,12 +196,16 @@ export interface VCardFields {
   adrState?: string;
   adrZip?: string;
   adrCountry?: string;
+  bdayYear?: number;
+  bdayMonth?: number;
+  bdayDay?: number;
 }
 
 export function buildVCard(fields: VCardFields, existingRaw?: string): string {
   // If we have an existing vCard, update fields in-place to preserve extra data
   if (existingRaw) {
-    let vcard = existingRaw;
+    // Unfold continuation lines first so regexes match full values
+    let vcard = unfoldVCard(existingRaw);
     const setField = (name: string, value: string) => {
       // Replace existing field or append before END:VCARD
       const re = new RegExp(`^${name}(?:;[^:]*)?:.*$`, "im");
@@ -216,15 +227,22 @@ export function buildVCard(fields: VCardFields, existingRaw?: string): string {
         fields.adrState !== undefined || fields.adrZip !== undefined ||
         fields.adrCountry !== undefined) {
       const adrVal = `;;${fields.adrStreet ?? ""};${fields.adrCity ?? ""};${fields.adrState ?? ""};${fields.adrZip ?? ""};${fields.adrCountry ?? ""}`;
-      // Match ADR with any prefix (e.g. item3.ADR)
-      const adrRe = /^(?:\w+\.)?ADR(?:;[^:]*)?:.*$/im;
-      if (adrRe.test(vcard)) {
-        vcard = vcard.replace(adrRe, `ADR;TYPE=HOME:${adrVal}`);
-      } else if (adrVal !== ";;;;;;" ) {
+      // Match ADR with any prefix (e.g. item3.ADR) — remove ALL existing ADR lines
+      const adrRe = /^(?:\w+\.)?ADR(?:;[^:]*)?:.*$/gim;
+      vcard = vcard.replace(adrRe, "");
+      if (adrVal !== ";;;;;;" ) {
         vcard = vcard.replace(/\r?\nEND:VCARD/i, `\r\nADR;TYPE=HOME:${adrVal}\r\nEND:VCARD`);
       }
     }
     // Clean up blank lines from removed fields
+    // Handle BDAY
+    if (fields.bdayMonth !== undefined && fields.bdayDay !== undefined) {
+      const y = String(fields.bdayYear || 1604).padStart(4, "0");
+      const m = String(fields.bdayMonth).padStart(2, "0");
+      const d = String(fields.bdayDay).padStart(2, "0");
+      const bdayVal = `${y}-${m}-${d}`;
+      setField("BDAY", bdayVal);
+    }
     vcard = vcard.replace(/(\r?\n){3,}/g, "\r\n");
     return vcard;
   }
@@ -245,11 +263,26 @@ export function buildVCard(fields: VCardFields, existingRaw?: string): string {
     const adrVal = `;;${fields.adrStreet ?? ""};${fields.adrCity ?? ""};${fields.adrState ?? ""};${fields.adrZip ?? ""};${fields.adrCountry ?? ""}`;
     if (adrVal !== ";;;;;;" ) lines.push(`ADR;TYPE=HOME:${adrVal}`);
   }
+  if (fields.bdayMonth && fields.bdayDay) {
+    const y = String(fields.bdayYear || 1604).padStart(4, "0");
+    const m = String(fields.bdayMonth).padStart(2, "0");
+    const d = String(fields.bdayDay).padStart(2, "0");
+    lines.push(`BDAY;VALUE=date:${y}-${m}-${d}`);
+  }
   lines.push("END:VCARD");
   return lines.join("\r\n");
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
+
+/** Extract birthday from vCard BDAY field */
+function extractBday(vcard: string): { year: number; month: number; day: number } {
+  const m = vcard.match(/^BDAY(?:;[^:]*)?:(\d{4})-(\d{2})-(\d{2})/im);
+  if (!m) return { year: 0, month: 0, day: 0 };
+  const year = parseInt(m[1], 10);
+  // 1604 is a sentinel year used by some clients when year is unknown
+  return { year: year === 1604 ? 0 : year, month: parseInt(m[2], 10), day: parseInt(m[3], 10) };
+}
 
 /** Extract structured address from vCard ADR field */
 function extractAdr(vcard: string): { street: string; city: string; state: string; zip: string; country: string } {
@@ -303,4 +336,9 @@ function decodeXmlEntities(s: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'");
+}
+
+/** Unfold vCard line continuations (RFC 6350: CRLF + space/tab = continuation) */
+function unfoldVCard(s: string): string {
+  return s.replace(/\r?\n[ \t]/g, "");
 }

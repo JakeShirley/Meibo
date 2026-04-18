@@ -3,6 +3,14 @@ import pb, { ensureAuthenticated } from "../lib/pocketbase.ts";
 import type { CardDavContact } from "../hooks/useCardDav.ts";
 import type { Contact } from "../types/contact.ts";
 
+const MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function formatBirthday(month: number, day: number, year: number): string {
+  if (!month || !day) return "";
+  const m = MONTH_NAMES[month] || String(month);
+  return year ? `${day} ${m} ${year}` : `${day} ${m}`;
+}
+
 const COLLECTION = import.meta.env.VITE_PB_COLLECTION || "contacts";
 
 interface Props {
@@ -17,6 +25,7 @@ export interface MergedFields {
   email: string;
   phone_number: string;
   address: string;
+  birthday: string;
 }
 
 type FieldSource = "pb" | "dav";
@@ -35,6 +44,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     email: "dav",
     phone_number: "dav",
     address: "dav",
+    birthday: "dav",
   });
 
   // Search PocketBase contacts
@@ -80,12 +90,15 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
 
   const davAddress = [carddavContact.adrStreet, carddavContact.adrCity, carddavContact.adrState, carddavContact.adrZip, carddavContact.adrCountry].filter(Boolean).join(", ");
 
+  const davBirthday = formatBirthday(carddavContact.bdayMonth, carddavContact.bdayDay, carddavContact.bdayYear);
+
   const davValues: MergedFields = {
     first_name: davFirstName,
     last_name: davLastName,
     email: carddavContact.email,
     phone_number: carddavContact.tel,
     address: davAddress,
+    birthday: davBirthday,
   };
 
   const getPbAddress = (c: Contact): string => {
@@ -96,13 +109,21 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
       .filter(Boolean).map(String).join(", ");
   };
 
+  const getPbBirthday = (c: Contact): string => {
+    const m = Number(c.birthday_month ?? 0);
+    const d = Number(c.birthday_day ?? 0);
+    const y = Number(c.birthday_year ?? 0);
+    return formatBirthday(m, d, y);
+  };
+
   const pbValues: MergedFields = selectedPb ? {
     first_name: String(selectedPb.first_name ?? ""),
     last_name: String(selectedPb.last_name ?? ""),
     email: String(selectedPb.email ?? ""),
     phone_number: String(selectedPb.phone_number ?? ""),
     address: getPbAddress(selectedPb),
-  } : { first_name: "", last_name: "", email: "", phone_number: "", address: "" };
+    birthday: getPbBirthday(selectedPb),
+  } : { first_name: "", last_name: "", email: "", phone_number: "", address: "", birthday: "" };
 
   const getMergedValue = (field: keyof MergedFields) =>
     sources[field] === "pb" ? pbValues[field] : davValues[field];
@@ -111,7 +132,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     setSelectedPb(contact);
     // Auto-pick best source per field
     const newSources: Record<string, FieldSource> = {};
-    for (const field of ["first_name", "last_name", "email", "phone_number", "address"] as const) {
+    for (const field of ["first_name", "last_name", "email", "phone_number", "address", "birthday"] as const) {
       const pb = pbValues.first_name; // just for type; actual logic below
       void pb;
       const davVal = davValues[field];
@@ -133,6 +154,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
       email: getMergedValue("email"),
       phone_number: getMergedValue("phone_number"),
       address: getMergedValue("address"),
+      birthday: getMergedValue("birthday"),
     };
     onLink(String(selectedPb.id), merged);
   };
@@ -143,6 +165,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     { key: "email", label: "Email" },
     { key: "phone_number", label: "Phone" },
     { key: "address", label: "Address" },
+    { key: "birthday", label: "Birthday" },
   ];
 
   return (

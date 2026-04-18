@@ -213,6 +213,9 @@ export default function App() {
                           adrZip: String(ca.address_zip ?? ""),
                           adrCountry: String(ca.address_country ?? ""),
                         } : {}),
+                        bdayMonth: Number(updated.birthday_month ?? 0),
+                        bdayDay: Number(updated.birthday_day ?? 0),
+                        bdayYear: Number(updated.birthday_year ?? 0),
                       });
                     } catch (err) {
                       console.error("[Sync] Failed to sync to Radicale:", err);
