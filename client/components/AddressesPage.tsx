@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCollection } from "../hooks/useCollection.ts";
-import pb, { ensureAuthenticated } from "../lib/pocketbase.ts";
+import { addresses as addressesApi } from "../lib/api.ts";
 import ContactsTable from "./ContactsTable.tsx";
 import ContactDetail from "./ContactDetail.tsx";
 import RecordForm from "./RecordForm.tsx";
@@ -32,7 +32,6 @@ export default function AddressesPage() {
     setSortField,
     sortDir,
     setSortDir,
-    fetchAll,
     refetch,
   } = useCollection<Address>(COLLECTION);
 
@@ -46,23 +45,12 @@ export default function AddressesPage() {
   const handleRehydrateOne = useCallback(async (id: string) => {
     setRehydratingSingle(true);
     try {
-      await ensureAuthenticated();
-      const res = await fetch(`/api/server/rehydrate-address/${id}`, {
-        method: "POST",
-        headers: { Authorization: pb.authStore.token },
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setRehydrateStatus(`Failed: ${data.error || "Unknown error"}`);
-        setTimeout(() => setRehydrateStatus(null), 4000);
-      } else {
-        const data = await res.json();
-        setRehydrateStatus(`Geocoded → ${data._geo?.lat?.toFixed(4)}, ${data._geo?.lon?.toFixed(4)}`);
-        refetch();
-        setTimeout(() => { setRehydrateStatus(null); setSelected(null); }, 2000);
-      }
-    } catch {
-      setRehydrateStatus("Geocode request failed");
+      const data = await addressesApi.rehydrateOne(id);
+      setRehydrateStatus(`Geocoded → ${data._geo?.lat?.toFixed(4)}, ${data._geo?.lon?.toFixed(4)}`);
+      refetch();
+      setTimeout(() => { setRehydrateStatus(null); setSelected(null); }, 2000);
+    } catch (err) {
+      setRehydrateStatus(err instanceof Error ? err.message : "Geocode request failed");
       setTimeout(() => setRehydrateStatus(null), 4000);
     } finally {
       setRehydratingSingle(false);
@@ -104,7 +92,7 @@ export default function AddressesPage() {
             + Add
           </button>
         </div>
-        <ExportButtons fetchAll={fetchAll} />
+        <ExportButtons exportUrl={(format) => addressesApi.exportUrl(format, { sort: sortField ? (sortDir === "asc" ? sortField : `-${sortField}`) : "" })} />
       </div>
 
       {rehydrateStatus && (

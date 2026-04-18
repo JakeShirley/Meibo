@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import pb, { ensureAuthenticated } from "../lib/pocketbase.ts";
-
-interface SchemaField {
-  name: string;
-  type: string;
-  options?: { collectionId?: string };
-}
+import {
+  contacts as contactsApi,
+  addresses as addressesApi,
+  tags as tagsApi,
+  type SchemaField,
+  type GeocodeSuggestion,
+} from "../lib/api.ts";
 
 interface RelationOption {
   id: string;
@@ -27,18 +27,10 @@ function toLabel(name: string): string {
 
 const SKIP = new Set(["id", "collectionId", "collectionName", "created", "updated", "expand"]);
 
-interface SuggestedAddress {
-  street: string;
-  city: string;
-  state: string;
-  zip: string;
-  country: string;
-  full: string;
-}
-
-interface GeocodeSuggestion {
-  confidence: string;
-  suggested_address: SuggestedAddress;
+function getCollectionApi(collection: string) {
+  if (collection === "contact_addresses") return addressesApi;
+  if (collection === "group_tags") return tagsApi;
+  return contactsApi;
 }
 
 export default function RecordForm({ collection, fields, record, onSave, onClose, onDelete }: Props) {
@@ -52,8 +44,6 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
   const [suggestion, setSuggestion] = useState<GeocodeSuggestion | null>(null);
 
   // Determine the raw schema fields (un-composed relations)
-  // For relation_composed fields, the actual PB field is the same name with type "relation"
-  // Filter out back-reference relations (where the related collection points back to this one)
   const rawFields = fields.map((f) =>
     f.type === "relation_composed" ? { ...f, type: "relation" } : f,
   ).filter((f) => !SKIP.has(f.name) && !f.name.toLowerCase().includes("resident"));
@@ -75,34 +65,15 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
     }
   }, [record]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch options for relation fields
+  // Populate relation options from schema (pre-resolved by server)
   useEffect(() => {
-    const relationFields = rawFields.filter((f) => f.type === "relation" && f.options?.collectionId);
-    if (relationFields.length === 0) return;
-
-    (async () => {
-      await ensureAuthenticated();
-      const opts: Record<string, RelationOption[]> = {};
-      for (const f of relationFields) {
-        try {
-          const colId = f.options!.collectionId!;
-          const col = await pb.send(`/api/collections/${colId}`, { method: "GET" });
-          const items = await pb.collection(col.name).getFullList({ sort: "created" });
-          const textTypes = new Set(["text", "email", "url"]);
-          const labelFields = (col.schema ?? [])
-            .filter((s: SchemaField) => textTypes.has(s.type))
-            .map((s: SchemaField) => s.name);
-
-          opts[f.name] = items.map((item: Record<string, unknown>) => ({
-            id: String(item.id),
-            label: labelFields.map((lf: string) => item[lf]).filter(Boolean).join(" ") || String(item.id),
-          }));
-        } catch {
-          opts[f.name] = [];
-        }
+    const opts: Record<string, RelationOption[]> = {};
+    for (const f of rawFields) {
+      if (f.type === "relation" && f.options?.items) {
+        opts[f.name] = f.options.items as RelationOption[];
       }
-      setRelationOptions(opts);
-    })();
+    }
+    setRelationOptions(opts);
   }, [fields]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = (name: string, value: unknown) => {
@@ -114,7 +85,6 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
     setSaving(true);
     setError(null);
     try {
-      await ensureAuthenticated();
       // Build payload
       const payload: Record<string, unknown> = {};
       for (const f of rawFields) {
@@ -128,52 +98,18 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
         }
       }
 
-      // Geocoding is handled server-side for address records
-      // Use raw fetch for address collections to get the _geocode suggestion
-      const isAddressCollection = collection === "contact_addresses";
+      const api = getCollectionApi(collection);
       let responseData: Record<string, unknown> | null = null;
 
-      if (isAddressCollection) {
-        await ensureAuthenticated();
-        const url = isEdit && record
-          ? `/api/collections/${collection}/records/${record.id}`
-          : `/api/collections/${collection}/records`;
-        const method = isEdit && record ? "PATCH" : "POST";
-        const res = await fetch(url, {
-          method,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: pb.authStore.token,
-          },
-          body: JSON.stringify(payload),
-        });
-        responseData = await res.json();
-        if (!res.ok) {
-          const fieldData = (responseData as Record<string, Record<string, { message?: string }>>)?.data;
-          if (fieldData && typeof fieldData === "object") {
-            const fieldErrors = Object.entries(fieldData)
-              .filter(([, v]) => v && typeof v === "object" && v.message)
-              .map(([k, v]) => `${toLabel(k)}: ${v.message}`);
-            if (fieldErrors.length > 0) {
-              setError(fieldErrors.join("\n"));
-              return;
-            }
-          }
-          setError((responseData as { message?: string })?.message || "Save failed");
-          return;
-        }
+      if (isEdit && record) {
+        responseData = await api.update(String(record.id), payload) as Record<string, unknown>;
       } else {
-        if (isEdit && record) {
-          await pb.collection(collection).update(String(record.id), payload);
-        } else {
-          await pb.collection(collection).create(payload);
-        }
+        responseData = await api.create(payload) as Record<string, unknown>;
       }
 
       // Check for geocode suggestion on address saves
-      const geocode = (responseData as Record<string, unknown>)?._geocode as GeocodeSuggestion | undefined;
+      const geocode = responseData?._geocode as GeocodeSuggestion | undefined;
       if (geocode && geocode.confidence !== "exact" && geocode.suggested_address) {
-        // Compare suggested vs entered
         const entered = [payload.address_street, payload.address_city, payload.address_state, payload.address_zip]
           .map(String).filter(Boolean).join(", ").toLowerCase();
         const suggested = [geocode.suggested_address.street, geocode.suggested_address.city, geocode.suggested_address.state, geocode.suggested_address.zip]
@@ -182,21 +118,14 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
         if (entered !== suggested) {
           setSuggestion(geocode);
           setSaving(false);
-          return; // Don't close — show the suggestion
+          return;
         }
       }
 
       onSave();
     } catch (err: unknown) {
-      // PocketBase ClientResponseError has nested data:
-      // err.data = { code, message, data: { field: { code, message } } }
-      // or err.response = { code, message, data: { field: { code, message } } }
-      const pbe = err as {
-        data?: { data?: Record<string, { message?: string }>; message?: string };
-        response?: { data?: Record<string, { message?: string }> };
-        message?: string;
-      };
-      const fieldData = pbe.response?.data || pbe.data?.data;
+      const e = err as { data?: { data?: Record<string, { message?: string }>; message?: string }; message?: string };
+      const fieldData = e.data?.data;
       if (fieldData && typeof fieldData === "object") {
         const fieldErrors = Object.entries(fieldData)
           .filter(([, v]) => v && typeof v === "object" && v.message)
@@ -206,7 +135,7 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
           return;
         }
       }
-      setError(pbe.data?.message || pbe.message || "Save failed");
+      setError(e.data?.message || e.message || "Save failed");
     } finally {
       setSaving(false);
     }
@@ -217,8 +146,8 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
     setDeleting(true);
     setError(null);
     try {
-      await ensureAuthenticated();
-      await pb.collection(collection).delete(String(record.id));
+      const api = getCollectionApi(collection);
+      await api.delete(String(record.id));
       onDelete?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");

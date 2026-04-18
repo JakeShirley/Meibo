@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import pb, { ensureAuthenticated } from "../lib/pocketbase.ts";
+import { contacts as contactsApi, type MergeFieldSelections, type Contact } from "../lib/api.ts";
 import type { CardDavContact } from "../hooks/useCardDav.ts";
-import type { Contact } from "../types/contact.ts";
 
 const MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -11,24 +10,13 @@ function formatBirthday(month: number, day: number, year: number): string {
   return year ? `${day} ${m} ${year}` : `${day} ${m}`;
 }
 
-const COLLECTION = import.meta.env.VITE_PB_COLLECTION || "contacts";
-
 interface Props {
   carddavContact: CardDavContact;
-  onLink: (pbId: string, merged: MergedFields) => void;
+  onLink: (pbId: string, fieldSelections: MergeFieldSelections) => void;
   onClose: () => void;
 }
 
-export interface MergedFields {
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone_number: string;
-  address: string;
-  birthday: string;
-}
-
-type FieldSource = "pb" | "dav";
+type FieldSource = "pb" | "carddav";
 
 export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Props) {
   const [step, setStep] = useState<"search" | "merge">("search");
@@ -39,30 +27,25 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
 
   // Field sources for merge step
   const [sources, setSources] = useState<Record<string, FieldSource>>({
-    first_name: "dav",
-    last_name: "dav",
-    email: "dav",
-    phone_number: "dav",
-    address: "dav",
-    birthday: "dav",
+    first_name: "carddav",
+    last_name: "carddav",
+    email: "carddav",
+    phone_number: "carddav",
+    address: "carddav",
+    birthday: "carddav",
   });
 
-  // Search PocketBase contacts
+  // Search contacts via new API
   useEffect(() => {
     if (!query.trim()) { setResults([]); return; }
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        await ensureAuthenticated();
-        const filter = query
-          .split(/\s+/)
-          .filter(Boolean)
-          .map((w) => `(first_name ~ "${w}" || last_name ~ "${w}" || email ~ "${w}" || phone_number ~ "${w}")`)
-          .join(" && ");
-        const res = await pb.collection(COLLECTION).getList<Contact>(1, 20, {
-          filter: filter || undefined,
+        const res = await contactsApi.list({
+          page: 1,
+          perPage: 20,
+          search: query,
           sort: "first_name",
-          expand: "current_address",
         });
         setResults(res.items);
       } catch {
@@ -78,7 +61,6 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
   const davFirstName = (() => {
     const nMatch = carddavContact.raw.match(/^N(?:;[^:]*)?:([^;\r\n]*);([^;\r\n]*)/im);
     if (nMatch) return nMatch[2]?.trim() || "";
-    // Fall back: first word of FN
     return carddavContact.fn.split(/\s+/)[0] || "";
   })();
   const davLastName = (() => {
@@ -92,7 +74,16 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
 
   const davBirthday = formatBirthday(carddavContact.bdayMonth, carddavContact.bdayDay, carddavContact.bdayYear);
 
-  const davValues: MergedFields = {
+  interface MergedFieldValues {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone_number: string;
+    address: string;
+    birthday: string;
+  }
+
+  const davValues: MergedFieldValues = {
     first_name: davFirstName,
     last_name: davLastName,
     email: carddavContact.email,
@@ -102,11 +93,15 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
   };
 
   const getPbAddress = (c: Contact): string => {
-    const exp = (c as Record<string, unknown>).expand as Record<string, Record<string, unknown>> | undefined;
-    const addr = exp?.current_address;
-    if (!addr) return "";
-    return [addr.address_street, addr.address_city, addr.address_state, addr.address_zip, addr.address_country]
-      .filter(Boolean).map(String).join(", ");
+    // Server flattens expanded relations to dot-notation
+    const parts = [
+      c["current_address.address_street"],
+      c["current_address.address_city"],
+      c["current_address.address_state"],
+      c["current_address.address_zip"],
+      c["current_address.address_country"],
+    ].filter(Boolean).map(String);
+    return parts.join(", ");
   };
 
   const getPbBirthday = (c: Contact): string => {
@@ -116,7 +111,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     return formatBirthday(m, d, y);
   };
 
-  const pbValues: MergedFields = selectedPb ? {
+  const pbValues: MergedFieldValues = selectedPb ? {
     first_name: String(selectedPb.first_name ?? ""),
     last_name: String(selectedPb.last_name ?? ""),
     email: String(selectedPb.email ?? ""),
@@ -125,22 +120,18 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     birthday: getPbBirthday(selectedPb),
   } : { first_name: "", last_name: "", email: "", phone_number: "", address: "", birthday: "" };
 
-  const getMergedValue = (field: keyof MergedFields) =>
+  const getMergedValue = (field: keyof MergedFieldValues) =>
     sources[field] === "pb" ? pbValues[field] : davValues[field];
 
   const handleSelectPb = (contact: Contact) => {
     setSelectedPb(contact);
-    // Auto-pick best source per field
     const newSources: Record<string, FieldSource> = {};
     for (const field of ["first_name", "last_name", "email", "phone_number", "address", "birthday"] as const) {
-      const pb = pbValues.first_name; // just for type; actual logic below
-      void pb;
       const davVal = davValues[field];
-      const pbVal = String(contact[field] ?? "");
-      // Prefer whichever has a value; if both have values, prefer PB (existing data)
+      const pbVal = field === "address" ? getPbAddress(contact) : field === "birthday" ? getPbBirthday(contact) : String(contact[field] ?? "");
       if (pbVal && !davVal) newSources[field] = "pb";
-      else if (!pbVal && davVal) newSources[field] = "dav";
-      else newSources[field] = "pb"; // default to PB when both have data
+      else if (!pbVal && davVal) newSources[field] = "carddav";
+      else newSources[field] = "pb";
     }
     setSources(newSources);
     setStep("merge");
@@ -148,18 +139,19 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
 
   const handleConfirmMerge = () => {
     if (!selectedPb) return;
-    const merged: MergedFields = {
-      first_name: getMergedValue("first_name"),
-      last_name: getMergedValue("last_name"),
-      email: getMergedValue("email"),
-      phone_number: getMergedValue("phone_number"),
-      address: getMergedValue("address"),
-      birthday: getMergedValue("birthday"),
+    // Send field selections to server — server does the actual merge
+    const fieldSelections: MergeFieldSelections = {
+      first_name: sources.first_name as "pb" | "carddav",
+      last_name: sources.last_name as "pb" | "carddav",
+      email: sources.email as "pb" | "carddav",
+      phone_number: sources.phone_number as "pb" | "carddav",
+      address: sources.address as "pb" | "carddav",
+      birthday: sources.birthday as "pb" | "carddav",
     };
-    onLink(String(selectedPb.id), merged);
+    onLink(String(selectedPb.id), fieldSelections);
   };
 
-  const mergeFields: { key: keyof MergedFields; label: string }[] = [
+  const mergeFields: { key: keyof MergedFieldValues; label: string }[] = [
     { key: "first_name", label: "First Name" },
     { key: "last_name", label: "Last Name" },
     { key: "email", label: "Email" },
@@ -272,9 +264,9 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
                         </button>
                         <button
                           type="button"
-                          onClick={() => setSources((s) => ({ ...s, [key]: "dav" }))}
+                          onClick={() => setSources((s) => ({ ...s, [key]: "carddav" }))}
                           className={`flex-1 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-                            sources[key] === "dav"
+                            sources[key] === "carddav"
                               ? "border-primary bg-primary-light font-medium text-primary-text"
                               : "border-border text-text-secondary hover:border-input-focus"
                           }`}

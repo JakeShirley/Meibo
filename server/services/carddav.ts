@@ -43,15 +43,8 @@ async function davRequest(path: string, method: string, body: string, depth = "1
   const auth = authHeader();
   if (auth) headers.Authorization = auth;
 
-  console.log(`[CardDAV] ${method} ${url} (Depth: ${depth})`);
-  console.log(`[CardDAV] Auth: ${auth ? "Basic ***" : "(none)"}`);
-  console.log(`[CardDAV] Request body:\n${body}`);
-
   const res = await fetch(url, { method, headers, body });
   const text = await res.text();
-
-  console.log(`[CardDAV] Response: ${res.status} ${res.statusText}`);
-  console.log(`[CardDAV] Response body (first 1000 chars):\n${text.slice(0, 1000)}`);
 
   if (!res.ok) {
     throw new Error(`CardDAV ${method} ${path} failed (${res.status}): ${text}`);
@@ -71,18 +64,15 @@ export async function listAddressBooks(): Promise<AddressBook[]> {
   </d:prop>
 </d:propfind>`;
 
-  console.log(`[CardDAV] Discovering address books for user: "${user}"`);
   const body = await davRequest(`/${user}/`, "PROPFIND", xml, "1");
   const books: AddressBook[] = [];
 
   // Simple XML extraction — handle both prefixed (d:response) and unprefixed (response)
   const responses = body.split(/<(?:[\w-]+:)?response[ >]/gi).slice(1);
-  console.log(`[CardDAV] Found ${responses.length} response(s) in PROPFIND`);
   for (const r of responses) {
     // Only keep addressbook collections
     const isAddressBook = /<(?:[\w-]+:)?addressbook/i.test(r);
     const hrefMatch = r.match(/<(?:[\w-]+:)?href>([^<]+)<\//);
-    console.log(`[CardDAV]   response href=${hrefMatch?.[1] ?? "(none)"} isAddressBook=${isAddressBook}`);
     if (!isAddressBook) continue;
     const nameMatch = r.match(/<(?:[\w-]+:)?displayname>([^<]*)<\//);
     if (hrefMatch) {
@@ -92,7 +82,6 @@ export async function listAddressBooks(): Promise<AddressBook[]> {
       });
     }
   }
-  console.log(`[CardDAV] Discovered ${books.length} address book(s):`, books);
   return books;
 }
 
@@ -106,12 +95,10 @@ export async function listContacts(addressBookHref: string): Promise<CardDavCont
   </d:prop>
 </card:addressbook-query>`;
 
-  console.log(`[CardDAV] Fetching contacts from: ${addressBookHref}`);
   const body = await davRequest(addressBookHref, "REPORT", xml, "1");
   const contacts: CardDavContact[] = [];
 
   const responses = body.split(/<(?:[\w-]+:)?response[ >]/gi).slice(1);
-  console.log(`[CardDAV] Found ${responses.length} contact response(s)`);
   for (const r of responses) {
     const hrefMatch = r.match(/<(?:[\w-]+:)?href>([^<]+)<\//);
     const etagMatch = r.match(/<(?:[\w-]+:)?getetag>"?([^"<]+)"?<\//);
@@ -173,13 +160,11 @@ export async function updateVCard(href: string, vcard: string, etag?: string): P
   if (auth) headers.Authorization = auth;
   if (etag) headers["If-Match"] = `"${etag.replace(/"/g, "")}"`;
 
-  console.log(`[CardDAV] PUT ${url}`);
   const res = await fetch(url, { method: "PUT", headers, body: vcard });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`CardDAV PUT ${href} failed (${res.status}): ${text}`);
   }
-  console.log(`[CardDAV] PUT ${href} → ${res.status}`);
 }
 
 // ── Build a vCard string from field values ──────────────────────────
@@ -291,13 +276,11 @@ export async function createNewVCard(
   const auth = authHeader();
   if (auth) headers.Authorization = auth;
 
-  console.log(`[CardDAV] PUT (create) ${url}`);
   const res = await fetch(url, { method: "PUT", headers, body: vcard });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`CardDAV PUT (create) ${href} failed (${res.status}): ${text}`);
   }
-  console.log(`[CardDAV] Created ${href} → ${res.status}`);
   return { href };
 }
 

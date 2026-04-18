@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useContacts } from "./hooks/useContacts.ts";
 import { useLinks } from "./hooks/useLinks.ts";
 import { useCardDav, type CardDavContact } from "./hooks/useCardDav.ts";
+import { contacts as contactsApi, type Contact } from "./lib/api.ts";
 import ContactsTable from "./components/ContactsTable.tsx";
 import ContactDetail from "./components/ContactDetail.tsx";
 import RecordForm from "./components/RecordForm.tsx";
@@ -16,7 +17,6 @@ import PixelTrees from "./components/PixelTrees.tsx";
 import MapPage from "./components/MapPage.tsx";
 import CardDavPage from "./components/CardDavPage.tsx";
 import LinkFromDetailDialog from "./components/LinkFromDetailDialog.tsx";
-import type { Contact } from "./types/contact.ts";
 
 type Tab = "contacts" | "addresses" | "family_sides" | "map" | "carddav";
 
@@ -24,7 +24,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("contacts");
 
   const {
-    collectionName,
     contacts,
     displayFields,
     rawSchema,
@@ -39,23 +38,23 @@ export default function App() {
     setSortField,
     sortDir,
     setSortDir,
-    fetchAll,
     refetch,
   } = useContacts();
 
-  const { links, syncToRadicale, createLink, createCardDavContact, getHrefForPbId } = useLinks();
+  const { links, linkToExisting, linkCreateNew } = useLinks();
   const linkedIds = useMemo(() => new Set(Object.keys(links)), [links]);
 
-  // Fetch CardDAV contacts for photo mapping
-  const { contacts: davContacts, books, selectedBook } = useCardDav();
+  // Photos come enriched from the server in _photoUri
   const photoMap = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const [pbId, href] of Object.entries(links)) {
-      const dav = davContacts.find((c) => c.href === href);
-      if (dav?.photoUri) map[pbId] = dav.photoUri;
+    for (const c of contacts) {
+      if (c._photoUri) map[c.id] = c._photoUri as string;
     }
     return map;
-  }, [links, davContacts]);
+  }, [contacts]);
+
+  // CardDAV data (needed for LinkFromDetailDialog)
+  const { contacts: davContacts, books, selectedBook } = useCardDav();
 
   const [selected, setSelected] = useState<Contact | null>(null);
   const [editing, setEditing] = useState<Contact | null | "new">(null);
@@ -63,9 +62,10 @@ export default function App() {
   const [searchInput, setSearchInput] = useState("");
   const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
 
+  // Contacts are enriched with _linked from server, so filter on that
   const displayedContacts = linkFilter === "all"
     ? contacts
-    : contacts.filter((c) => linkFilter === "linked" ? linkedIds.has(c.id) : !linkedIds.has(c.id));
+    : contacts.filter((c) => linkFilter === "linked" ? c._linked : !c._linked);
 
   // Debounce search input
   useEffect(() => {
@@ -89,97 +89,32 @@ export default function App() {
     [sortField, sortDir, setSortField, setSortDir, setPage],
   );
 
+  // Single-call: server fetches PB data, creates vCard, saves link
   const handleCreateAndLink = useCallback(
     async (contact: Contact) => {
       if (!books.length) return;
       const book = selectedBook || books[0].href;
       try {
-        const { default: pbLib, ensureAuthenticated } = await import("./lib/pocketbase.ts");
-        await ensureAuthenticated();
-        const full = await pbLib.collection(collectionName).getOne<Contact>(contact.id, { expand: "current_address" });
-
-        const firstName = String(full.first_name ?? "");
-        const lastName = String(full.last_name ?? "");
-        const email = String(full.email ?? "");
-        const phone = String(full.phone_number ?? "");
-        const bdayMonth = Number(full.birthday_month ?? 0);
-        const bdayDay = Number(full.birthday_day ?? 0);
-        const bdayYear = Number(full.birthday_year ?? 0);
-
-        const exp = (full as Record<string, unknown>).expand as Record<string, Record<string, unknown>> | undefined;
-        const addr = exp?.current_address;
-
-        const { href } = await createCardDavContact(book, {
-          fn: `${firstName} ${lastName}`.trim(),
-          firstName,
-          lastName,
-          email,
-          tel: phone,
-          adrStreet: String(addr?.address_street ?? ""),
-          adrCity: String(addr?.address_city ?? ""),
-          adrState: String(addr?.address_state ?? ""),
-          adrZip: String(addr?.address_zip ?? ""),
-          adrCountry: String(addr?.address_country ?? ""),
-          bdayMonth,
-          bdayDay,
-          bdayYear,
-        });
-
-        await createLink(contact.id, href);
+        await linkCreateNew(contact.id, book);
         setLinkingFromDetail(null);
       } catch (err) {
         console.error("[Link] Failed to create CardDAV contact:", err);
       }
     },
-    [books, selectedBook, collectionName, createCardDavContact, createLink],
+    [books, selectedBook, linkCreateNew],
   );
 
+  // Single-call: server fetches PB data, syncs to existing vCard, saves link
   const handleLinkExisting = useCallback(
     async (contact: Contact, davContact: CardDavContact) => {
       try {
-        const { default: pbLib, ensureAuthenticated } = await import("./lib/pocketbase.ts");
-        await ensureAuthenticated();
-        const full = await pbLib.collection(collectionName).getOne<Contact>(contact.id, { expand: "current_address" });
-
-        const firstName = String(full.first_name ?? "");
-        const lastName = String(full.last_name ?? "");
-        const email = String(full.email ?? "");
-        const phone = String(full.phone_number ?? "");
-        const bdayMonth = Number(full.birthday_month ?? 0);
-        const bdayDay = Number(full.birthday_day ?? 0);
-        const bdayYear = Number(full.birthday_year ?? 0);
-
-        const exp = (full as Record<string, unknown>).expand as Record<string, Record<string, unknown>> | undefined;
-        const addr = exp?.current_address;
-
-        await syncToRadicale(
-          davContact.href,
-          {
-            fn: `${firstName} ${lastName}`.trim(),
-            firstName,
-            lastName,
-            email,
-            tel: phone,
-            adrStreet: String(addr?.address_street ?? ""),
-            adrCity: String(addr?.address_city ?? ""),
-            adrState: String(addr?.address_state ?? ""),
-            adrZip: String(addr?.address_zip ?? ""),
-            adrCountry: String(addr?.address_country ?? ""),
-            bdayMonth,
-            bdayDay,
-            bdayYear,
-          },
-          davContact.raw,
-          davContact.etag,
-        );
-
-        await createLink(contact.id, davContact.href);
+        await linkToExisting(contact.id, davContact.href);
         setLinkingFromDetail(null);
       } catch (err) {
         console.error("[Link] Failed to link:", err);
       }
     },
-    [createLink, syncToRadicale, collectionName],
+    [linkToExisting],
   );
 
   const tabs: { key: Tab; label: string }[] = [
@@ -251,7 +186,7 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <ExportButtons fetchAll={fetchAll} />
+            <ExportButtons exportUrl={(format) => contactsApi.exportUrl(format, { sort: sortField ? (sortDir === "asc" ? sortField : `-${sortField}`) : "", search: searchInput })} />
           </div>
 
           {error && (
@@ -294,7 +229,7 @@ export default function App() {
               onClose={() => setSelected(null)}
               onEdit={() => { setEditing(selected); setSelected(null); }}
               photoUri={photoMap[selected.id]}
-              isLinked={linkedIds.has(selected.id)}
+              isLinked={!!selected._linked}
               onLinkCardDav={() => { setLinkingFromDetail(selected); }}
             />
           )}
@@ -313,45 +248,11 @@ export default function App() {
 
           {editing && (
             <RecordForm
-              collection={collectionName}
+              collection="contacts"
               fields={rawSchema}
               record={editing === "new" ? null : editing}
-              onSave={async () => {
-                // If the contact is linked to CardDAV, sync changes
-                if (editing && editing !== "new") {
-                  const href = getHrefForPbId(String(editing.id));
-                  if (href) {
-                    try {
-                      // Re-fetch the updated record to get current values
-                      const { default: pb, ensureAuthenticated } = await import("./lib/pocketbase.ts");
-                      await ensureAuthenticated();
-                      const updated = await pb.collection(collectionName).getOne(String(editing.id), { expand: "current_address" });
-                      const fn = [updated.first_name, updated.last_name].filter(Boolean).join(" ");
-                      // Get address from expanded relation
-                      const addr = (updated as Record<string, unknown>).expand as Record<string, Record<string, unknown>> | undefined;
-                      const ca = addr?.current_address;
-                      await syncToRadicale(href, {
-                        fn,
-                        firstName: String(updated.first_name ?? ""),
-                        lastName: String(updated.last_name ?? ""),
-                        email: String(updated.email ?? ""),
-                        tel: String(updated.phone_number ?? ""),
-                        ...(ca ? {
-                          adrStreet: String(ca.address_street ?? ""),
-                          adrCity: String(ca.address_city ?? ""),
-                          adrState: String(ca.address_state ?? ""),
-                          adrZip: String(ca.address_zip ?? ""),
-                          adrCountry: String(ca.address_country ?? ""),
-                        } : {}),
-                        bdayMonth: Number(updated.birthday_month ?? 0),
-                        bdayDay: Number(updated.birthday_day ?? 0),
-                        bdayYear: Number(updated.birthday_year ?? 0),
-                      });
-                    } catch (err) {
-                      console.error("[Sync] Failed to sync to Radicale:", err);
-                    }
-                  }
-                }
+              onSave={() => {
+                // Server auto-syncs to CardDAV if the contact is linked
                 setEditing(null);
                 refetch();
               }}

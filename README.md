@@ -14,16 +14,54 @@ A web app for browsing, editing, and exporting contacts stored in a PocketBase d
 ## Architecture
 
 ```
-Browser → Vite (dev proxy) → Express (port 3001) → PocketBase
-                                  ↓
-                          Nominatim (geocoding)
+┌─────────┐        ┌──────────────────────────────────────┐
+│         │  HTTP   │          Express (port 3001)          │
+│ Browser │◄──────►│                                      │
+│  (React)│        │  /api/contacts    ──► PocketBase     │
+│         │        │  /api/addresses   ──► PocketBase     │
+└─────────┘        │  /api/tags        ──► PocketBase     │
+                   │  /api/schema/*    ──► PocketBase     │
+                   │  /api/auth/login  ──► PocketBase     │
+                   │  /api/carddav/*   ──► Radicale       │
+                   │  /api/geocode     ──► Mapbox         │
+                   │  /api/contacts/:id/link ──► PB + Radicale
+                   │  /api/contacts/:id/merge──► PB + Radicale
+                   └──────────────────────────────────────┘
+                          │            │            │
+                   ┌──────┘     ┌──────┘     ┌──────┘
+                   ▼            ▼            ▼
+              PocketBase    Radicale      Mapbox
+              (contacts,    (CardDAV      (geocoding)
+               addresses,   address
+               tags)        books)
 ```
 
-- **`client/`** — React frontend (Vite + Tailwind CSS v4)
-- **`server/`** — Express API server that proxies PocketBase and handles geocoding
+The browser **never talks directly** to PocketBase, Radicale, or Mapbox. Every user action is a single REST call to the Express server, which orchestrates the backing services internally:
+
+- **Editing a linked contact** → `PATCH /api/contacts/:id` → Express updates PocketBase, then auto-syncs the linked CardDAV vCard on Radicale
+- **Merging & linking** → `POST /api/contacts/:id/merge` → Express fetches both PB and CardDAV data, applies field selections, writes to both, and saves the link
+- **Creating an address** → `POST /api/addresses` → Express geocodes via Mapbox, injects lat/lon, then creates the record in PocketBase
+
+### API Surface
+
+| Resource | Endpoints | Description |
+|---|---|---|
+| **Auth** | `POST /api/auth/login` | Server-side PB admin auth, returns opaque token |
+| **Schema** | `GET /api/schema/{contacts,addresses,tags}` | Normalized field definitions with pre-resolved relation options |
+| **Contacts** | `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id` | CRUD with enriched responses (link status, photos inline) |
+| **Contact Linking** | `POST /api/contacts/:id/link`, `POST .../link/create`, `DELETE .../link`, `POST .../merge` | Single-call link, create+link, unlink, merge+link |
+| **Contact Utilities** | `GET /api/contacts/map`, `GET /api/contacts/export` | Map pin data, server-side CSV/JSON export |
+| **Addresses** | `GET/POST /api/addresses`, `GET/PATCH/DELETE /api/addresses/:id` | CRUD with auto-geocoding on create/update |
+| **Address Utilities** | `POST /api/addresses/:id/rehydrate`, `GET /api/addresses/export` | Re-geocode, export |
+| **Tags** | `GET/POST /api/tags`, `PATCH/DELETE /api/tags/:id`, `GET /api/tags/export` | Group tag CRUD + export |
+| **CardDAV** | `GET /api/carddav/address-books`, `GET /api/carddav/contacts` | Read-only CardDAV browsing |
+| **Geocode** | `GET /api/geocode?q=` | Forward geocode via Mapbox |
+
+- **`client/`** — React frontend (Vite + Tailwind CSS v4). Uses a typed fetch-based API client (`client/lib/api.ts`) — no PocketBase SDK
+- **`server/`** — Express API server that owns all PocketBase, Radicale, and Mapbox interactions
 - **`scripts/`** — One-off migration and backfill scripts
 
-The Express server keeps PocketBase admin credentials server-side and auto-geocodes addresses on save.
+The Express server keeps PocketBase admin credentials and Radicale auth server-side, auto-geocodes addresses on save, and auto-syncs linked contacts to CardDAV on edit.
 
 ## Prerequisites
 
@@ -106,23 +144,34 @@ node scripts/backfill-geocode.mjs
 contact_book/
 ├── client/                  # React frontend
 │   ├── components/          # UI components
-│   ├── hooks/               # React hooks (useContacts, useCollection, useTheme)
-│   ├── lib/                 # PocketBase client, geocode helper, export utils
+│   ├── hooks/               # React hooks (useContacts, useCollection, useLinks, useCardDav, useTheme)
+│   ├── lib/
+│   │   ├── api.ts           # Typed fetch-based API client (replaces PocketBase SDK)
+│   │   ├── geocode.ts       # Client-side geocode helper
+│   │   └── export.ts        # CSV/JSON export utilities
 │   ├── types/               # TypeScript types
 │   ├── index.css            # Tailwind + theme variables
 │   ├── main.tsx             # App entrypoint
 │   └── App.tsx              # Root component with tab navigation
 ├── server/                  # Express API server
 │   ├── config.ts            # Environment config
-│   ├── index.ts             # Server entrypoint
-│   ├── routes/              # API route handlers
+│   ├── index.ts             # Server entrypoint + route registration
+│   ├── routes/
 │   │   ├── auth.ts          # Admin auth (credentials server-side)
-│   │   ├── geocode.ts       # Nominatim geocoding endpoint
-│   │   └── addresses.ts     # Address CRUD with auto-geocoding
-│   ├── services/
-│   │   └── geocode.ts       # Nominatim client with throttle + retry
-│   └── middleware/
-│       └── pbProxy.ts       # PocketBase reverse proxy
+│   │   ├── contacts.ts      # Contacts CRUD + link/merge/export/map
+│   │   ├── addresses.ts     # Address CRUD with auto-geocoding + rehydrate
+│   │   ├── tags.ts          # Group tag CRUD + export
+│   │   ├── schema.ts        # Normalized schema endpoints
+│   │   ├── carddav.ts       # CardDAV address book & contact browsing
+│   │   └── geocode.ts       # Mapbox geocoding endpoint
+│   └── services/
+│       ├── pb.ts            # PocketBase client (server-managed auth + generic CRUD)
+│       ├── contacts.ts      # Contact business logic (auto-sync, linking, merge)
+│       ├── carddav.ts       # Radicale CardDAV client (PROPFIND, REPORT, PUT, vCard parsing)
+│       ├── geocode.ts       # Mapbox geocoding client
+│       └── links.ts         # PB↔CardDAV link map (file-based)
+├── data/
+│   └── carddav-links.json   # PocketBase ID → CardDAV href mapping
 ├── scripts/                 # Migration & backfill scripts
 ├── .env.example
 ├── index.html

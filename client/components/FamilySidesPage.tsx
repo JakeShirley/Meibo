@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useCollection } from "../hooks/useCollection.ts";
+import { contacts as contactsApi } from "../lib/api.ts";
 import ContactDetail from "./ContactDetail.tsx";
 import RecordForm from "./RecordForm.tsx";
 import SearchBar from "./SearchBar.tsx";
@@ -86,7 +87,7 @@ export default function FamilySidesPage() {
             + Tag
           </button>
         </div>
-        <ExportButtons fetchAll={contacts.fetchAll} />
+        <ExportButtons exportUrl={(format) => contactsApi.exportUrl(format)} />
       </div>
 
       {(contacts.error || tags.error) && (
