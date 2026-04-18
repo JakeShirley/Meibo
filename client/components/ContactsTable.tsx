@@ -12,6 +12,7 @@ interface Props {
   sortDir: "asc" | "desc";
   onSort: (field: string) => void;
   onSelect: (contact: Contact) => void;
+  linkedIds?: Set<string>;
 }
 
 function toLabel(name: string): string {
@@ -46,6 +47,7 @@ export default function ContactsTable({
   sortDir,
   onSort,
   onSelect,
+  linkedIds,
 }: Props) {
   const columns = fields.length > 0
     ? fields.map((f) => ({ key: f.name, label: toLabel(f.name), type: f.type }))
@@ -61,6 +63,7 @@ export default function ContactsTable({
       <table className="min-w-full divide-y divide-border text-sm">
         <thead className="bg-thead">
           <tr>
+            {linkedIds && <th className="w-8 px-2 py-3"></th>}
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -77,7 +80,7 @@ export default function ContactsTable({
           {contacts.length === 0 ? (
             <tr>
               <td
-                colSpan={columns.length}
+                colSpan={columns.length + (linkedIds ? 1 : 0)}
                 className="px-4 py-8 text-center text-text-muted"
               >
                 No contacts found.
@@ -90,6 +93,15 @@ export default function ContactsTable({
                 onClick={() => onSelect(contact)}
                 className="cursor-pointer transition-colors hover:bg-surface-hover"
               >
+                {linkedIds && (
+                  <td className="px-2 py-3 text-center">
+                    {linkedIds.has(contact.id) ? (
+                      <span title="Linked to CardDAV" className="text-primary">🔗</span>
+                    ) : (
+                      <span className="text-text-muted opacity-30">○</span>
+                    )}
+                  </td>
+                )}
                 {columns.map((col, i) => (
                   <td
                     key={col.key}
