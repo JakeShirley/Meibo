@@ -13,6 +13,7 @@ interface Props {
   onSort: (field: string) => void;
   onSelect: (contact: Contact) => void;
   linkedIds?: Set<string>;
+  photoMap?: Record<string, string>;
 }
 
 function toLabel(name: string): string {
@@ -48,6 +49,7 @@ export default function ContactsTable({
   onSort,
   onSelect,
   linkedIds,
+  photoMap,
 }: Props) {
   const columns = fields.length > 0
     ? fields.map((f) => ({ key: f.name, label: toLabel(f.name), type: f.type }))
@@ -102,14 +104,24 @@ export default function ContactsTable({
                     )}
                   </td>
                 )}
-                {columns.map((col, i) => (
-                  <td
-                    key={col.key}
-                    className={`px-4 py-3 ${i === 0 ? "font-medium text-text" : "text-text-secondary"}`}
-                  >
-                    {getCellValue(contact, col)}
-                  </td>
-                ))}
+                {columns.map((col, i) => {
+                  const photo = i === 0 && photoMap ? photoMap[contact.id] : undefined;
+                  return (
+                    <td
+                      key={col.key}
+                      className={`px-4 py-3 ${i === 0 ? "font-medium text-text" : "text-text-secondary"}`}
+                    >
+                      {i === 0 && photo ? (
+                        <div className="flex items-center gap-2">
+                          <img src={photo} alt="" className="h-7 w-7 rounded-full object-cover" />
+                          {getCellValue(contact, col)}
+                        </div>
+                      ) : (
+                        getCellValue(contact, col)
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))
           )}
