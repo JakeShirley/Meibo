@@ -20,8 +20,36 @@ import LinkFromDetailDialog from "./components/LinkFromDetailDialog.tsx";
 
 type Tab = "contacts" | "addresses" | "family_sides" | "map" | "carddav";
 
+const TAB_HASH: Record<Tab, string> = {
+  contacts: "contacts",
+  addresses: "addresses",
+  family_sides: "groups",
+  map: "map",
+  carddav: "carddav",
+};
+const HASH_TAB: Record<string, Tab> = Object.fromEntries(
+  Object.entries(TAB_HASH).map(([k, v]) => [v, k as Tab]),
+);
+
+function parseHash(): { tab: Tab; id?: string } {
+  const hash = window.location.hash.replace(/^#\/?/, "");
+  const [segment, id] = hash.split("/");
+  const tab = HASH_TAB[segment] ?? "contacts";
+  return { tab, id: id || undefined };
+}
+
+function setHash(tab: Tab, id?: string) {
+  const base = TAB_HASH[tab];
+  const hash = id ? `#${base}/${id}` : `#${base}`;
+  if (window.location.hash !== hash) {
+    window.history.replaceState(null, "", hash);
+  }
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>("contacts");
+  const initial = parseHash();
+  const [activeTab, setActiveTab] = useState<Tab>(initial.tab);
+  const [pendingDeepLinkId, setPendingDeepLinkId] = useState<string | undefined>(initial.id);
 
   const {
     contacts,
@@ -61,7 +89,43 @@ export default function App() {
   const [linkingFromDetail, setLinkingFromDetail] = useState<Contact | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
-  const [deepLinkAddressId, setDeepLinkAddressId] = useState<string | null>(null);
+  const [deepLinkAddressId, setDeepLinkAddressId] = useState<string | null>(
+    initial.tab === "addresses" && initial.id ? initial.id : null,
+  );
+
+  // Sync URL hash when contact detail opens/closes on the contacts tab
+  useEffect(() => {
+    if (activeTab === "contacts") {
+      setHash("contacts", selected ? selected.id : undefined);
+    }
+  }, [selected, activeTab]);
+
+  // Handle initial deep-link: open contact detail from URL on first load
+  useEffect(() => {
+    if (!pendingDeepLinkId) return;
+    const id = pendingDeepLinkId;
+    setPendingDeepLinkId(undefined);
+    if (activeTab === "contacts") {
+      contactsApi.get(id).then((c) => setSelected(c)).catch(() => {});
+    }
+    // Address deep-link is handled via deepLinkAddressId state passed to AddressesPage
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for hashchange (browser back/forward)
+  useEffect(() => {
+    const onHashChange = () => {
+      const { tab, id } = parseHash();
+      setActiveTab(tab);
+      setSelected(null);
+      if (tab === "contacts" && id) {
+        contactsApi.get(id).then((c) => setSelected(c)).catch(() => {});
+      } else if (tab === "addresses" && id) {
+        setDeepLinkAddressId(id);
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   // Contacts are enriched with _linked from server, so filter on that
   const displayedContacts = linkFilter === "all"
@@ -95,11 +159,13 @@ export default function App() {
     setSelected(null);
     setDeepLinkAddressId(addressId);
     setActiveTab("addresses");
+    window.history.pushState(null, "", `#addresses/${addressId}`);
   }, []);
 
   // Deep-link to contact detail: switch to Contacts tab and open the contact
   const handleContactDeepLink = useCallback(async (contactId: string) => {
     setActiveTab("contacts");
+    window.history.pushState(null, "", `#contacts/${contactId}`);
     try {
       const contact = await contactsApi.get(contactId);
       setSelected(contact);
@@ -162,7 +228,11 @@ export default function App() {
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => {
+              setActiveTab(tab.key);
+              setSelected(null);
+              window.history.pushState(null, "", `#${TAB_HASH[tab.key]}`);
+            }}
             className={`relative z-20 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.key
                 ? "border-b-2 border-primary text-primary"
