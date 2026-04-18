@@ -39,7 +39,7 @@ export default function AddressesPage() {
   const [selected, setSelected] = useState<Address | null>(null);
   const [editing, setEditing] = useState<Address | null | "new">(null);
   const [searchInput, setSearchInput] = useState("");
-  const [rehydrating, setRehydrating] = useState(false);
+  const [rehydrating, _setRehydrating] = useState(false);
   const [rehydrateStatus, setRehydrateStatus] = useState<string | null>(null);
   const [rehydratingSingle, setRehydratingSingle] = useState(false);
 
@@ -66,51 +66,6 @@ export default function AddressesPage() {
       setTimeout(() => setRehydrateStatus(null), 4000);
     } finally {
       setRehydratingSingle(false);
-    }
-  }, [refetch]);
-
-  const handleRehydrate = useCallback(async () => {
-    setRehydrating(true);
-    setRehydrateStatus("Starting...");
-    try {
-      await ensureAuthenticated();
-      const token = pb.authStore.token;
-      const res = await fetch("/api/server/rehydrate-addresses", {
-        method: "POST",
-        headers: { Authorization: token },
-      });
-
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response stream");
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = JSON.parse(line.slice(6));
-            if (data.total) {
-              setRehydrateStatus(`${data.i}/${data.total} — ${data.updated} geocoded, ${data.failed} failed`);
-            }
-          }
-        }
-      }
-
-      setRehydrateStatus("Done! Refreshing...");
-      refetch();
-      setTimeout(() => setRehydrateStatus(null), 3000);
-    } catch (err) {
-      setRehydrateStatus(`Error: ${err instanceof Error ? err.message : "Failed"}`);
-      setTimeout(() => setRehydrateStatus(null), 5000);
-    } finally {
-      setRehydrating(false);
     }
   }, [refetch]);
 
