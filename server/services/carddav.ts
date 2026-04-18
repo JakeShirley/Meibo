@@ -9,6 +9,12 @@ export interface CardDavContact {
   email: string;
   tel: string;
   org: string;
+  photoUri: string; // data URI for embedded photo, or empty
+  adrStreet: string;
+  adrCity: string;
+  adrState: string;
+  adrZip: string;
+  adrCountry: string;
   raw: string; // full vCard text
 }
 
@@ -110,6 +116,8 @@ export async function listContacts(addressBookHref: string): Promise<CardDavCont
     if (!hrefMatch || !vcardMatch) continue;
 
     const raw = decodeXmlEntities(vcardMatch[1].trim());
+    const photoUri = extractPhoto(raw);
+    const adr = extractAdr(raw);
     contacts.push({
       uid: extractVCardField(raw, "UID") || hrefMatch[1],
       href: hrefMatch[1],
@@ -118,11 +126,33 @@ export async function listContacts(addressBookHref: string): Promise<CardDavCont
       email: extractVCardField(raw, "EMAIL") || "",
       tel: extractVCardField(raw, "TEL") || "",
       org: extractVCardField(raw, "ORG") || "",
+      photoUri,
+      adrStreet: adr.street,
+      adrCity: adr.city,
+      adrState: adr.state,
+      adrZip: adr.zip,
+      adrCountry: adr.country,
       raw,
     });
   }
 
   return contacts;
+}
+
+// ── Fetch a single vCard from Radicale ──────────────────────────────
+export async function fetchVCard(href: string): Promise<string> {
+  const base = config.radicaleUrl.replace(/\/+$/, "");
+  const url = `${base}${href.startsWith("/") ? "" : "/"}${href}`;
+  const headers: Record<string, string> = {};
+  const auth = authHeader();
+  if (auth) headers.Authorization = auth;
+
+  const res = await fetch(url, { method: "GET", headers });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`CardDAV GET ${href} failed (${res.status}): ${text}`);
+  }
+  return res.text();
 }
 
 // ── Update a single vCard on Radicale via PUT ───────────────────────
@@ -154,6 +184,11 @@ export interface VCardFields {
   email?: string;
   tel?: string;
   org?: string;
+  adrStreet?: string;
+  adrCity?: string;
+  adrState?: string;
+  adrZip?: string;
+  adrCountry?: string;
 }
 
 export function buildVCard(fields: VCardFields, existingRaw?: string): string {
@@ -176,6 +211,19 @@ export function buildVCard(fields: VCardFields, existingRaw?: string): string {
     if (fields.email !== undefined) setField("EMAIL", fields.email);
     if (fields.tel !== undefined) setField("TEL", fields.tel);
     if (fields.org !== undefined) setField("ORG", fields.org);
+    // Handle ADR — format: ;;street;city;state;zip;country
+    if (fields.adrStreet !== undefined || fields.adrCity !== undefined ||
+        fields.adrState !== undefined || fields.adrZip !== undefined ||
+        fields.adrCountry !== undefined) {
+      const adrVal = `;;${fields.adrStreet ?? ""};${fields.adrCity ?? ""};${fields.adrState ?? ""};${fields.adrZip ?? ""};${fields.adrCountry ?? ""}`;
+      // Match ADR with any prefix (e.g. item3.ADR)
+      const adrRe = /^(?:\w+\.)?ADR(?:;[^:]*)?:.*$/im;
+      if (adrRe.test(vcard)) {
+        vcard = vcard.replace(adrRe, `ADR;TYPE=HOME:${adrVal}`);
+      } else if (adrVal !== ";;;;;;" ) {
+        vcard = vcard.replace(/\r?\nEND:VCARD/i, `\r\nADR;TYPE=HOME:${adrVal}\r\nEND:VCARD`);
+      }
+    }
     // Clean up blank lines from removed fields
     vcard = vcard.replace(/(\r?\n){3,}/g, "\r\n");
     return vcard;
@@ -193,11 +241,54 @@ export function buildVCard(fields: VCardFields, existingRaw?: string): string {
   if (fields.email) lines.push(`EMAIL:${fields.email}`);
   if (fields.tel) lines.push(`TEL:${fields.tel}`);
   if (fields.org) lines.push(`ORG:${fields.org}`);
+  {
+    const adrVal = `;;${fields.adrStreet ?? ""};${fields.adrCity ?? ""};${fields.adrState ?? ""};${fields.adrZip ?? ""};${fields.adrCountry ?? ""}`;
+    if (adrVal !== ";;;;;;" ) lines.push(`ADR;TYPE=HOME:${adrVal}`);
+  }
   lines.push("END:VCARD");
   return lines.join("\r\n");
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
+
+/** Extract structured address from vCard ADR field */
+function extractAdr(vcard: string): { street: string; city: string; state: string; zip: string; country: string } {
+  // ADR format: pobox;ext;street;city;state;zip;country
+  // May have prefix like "item3.ADR"
+  const m = vcard.match(/^(?:\w+\.)?ADR(?:;[^:]*)?:(.*)$/im);
+  if (!m) return { street: "", city: "", state: "", zip: "", country: "" };
+  const parts = m[1].split(";");
+  return {
+    street: (parts[2] || "").trim().replace(/\\,/g, ",").replace(/\\;/g, ";"),
+    city: (parts[3] || "").trim(),
+    state: (parts[4] || "").trim(),
+    zip: (parts[5] || "").trim(),
+    country: (parts[6] || "").trim(),
+  };
+}
+
+/** Extract embedded PHOTO as a data URI from a vCard */
+function extractPhoto(vcard: string): string {
+  // Match PHOTO line with params like ENCODING=b;TYPE=JPEG
+  const photoMatch = vcard.match(/^PHOTO(?:;([^:]*?))?:([\s\S]*?)(?=\r?\n[A-Z])/im);
+  if (!photoMatch) return "";
+
+  const params = (photoMatch[1] || "").toUpperCase();
+  let data = photoMatch[2].replace(/\r?\n\s*/g, ""); // unfold continuation lines
+
+  // Determine MIME type from params
+  let mime = "image/jpeg"; // default
+  if (params.includes("TYPE=PNG")) mime = "image/png";
+  else if (params.includes("TYPE=GIF")) mime = "image/gif";
+  else if (params.includes("TYPE=WEBP")) mime = "image/webp";
+
+  // Only produce data URI if we have base64 data
+  if (params.includes("ENCODING=B") || params.includes("ENCODING=BASE64") || data.length > 200) {
+    return `data:${mime};base64,${data}`;
+  }
+  return "";
+}
+
 function extractVCardField(vcard: string, field: string): string {
   // Handles both simple (FN:value) and parameterized (TEL;TYPE=WORK:value)
   const re = new RegExp(`^${field}(?:;[^:]*)?:(.+)$`, "im");

@@ -8,6 +8,12 @@ export interface CardDavContact {
   email: string;
   tel: string;
   org: string;
+  photoUri: string;
+  adrStreet: string;
+  adrCity: string;
+  adrState: string;
+  adrZip: string;
+  adrCountry: string;
   raw: string;
 }
 

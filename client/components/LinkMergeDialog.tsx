@@ -16,6 +16,7 @@ export interface MergedFields {
   last_name: string;
   email: string;
   phone_number: string;
+  address: string;
 }
 
 type FieldSource = "pb" | "dav";
@@ -33,6 +34,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     last_name: "dav",
     email: "dav",
     phone_number: "dav",
+    address: "dav",
   });
 
   // Search PocketBase contacts
@@ -50,6 +52,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
         const res = await pb.collection(COLLECTION).getList<Contact>(1, 20, {
           filter: filter || undefined,
           sort: "first_name",
+          expand: "current_address",
         });
         setResults(res.items);
       } catch {
@@ -75,11 +78,22 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     return parts.length > 1 ? parts.slice(1).join(" ") : "";
   })();
 
+  const davAddress = [carddavContact.adrStreet, carddavContact.adrCity, carddavContact.adrState, carddavContact.adrZip, carddavContact.adrCountry].filter(Boolean).join(", ");
+
   const davValues: MergedFields = {
     first_name: davFirstName,
     last_name: davLastName,
     email: carddavContact.email,
     phone_number: carddavContact.tel,
+    address: davAddress,
+  };
+
+  const getPbAddress = (c: Contact): string => {
+    const exp = (c as Record<string, unknown>).expand as Record<string, Record<string, unknown>> | undefined;
+    const addr = exp?.current_address;
+    if (!addr) return "";
+    return [addr.address_street, addr.address_city, addr.address_state, addr.address_zip, addr.address_country]
+      .filter(Boolean).map(String).join(", ");
   };
 
   const pbValues: MergedFields = selectedPb ? {
@@ -87,7 +101,8 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     last_name: String(selectedPb.last_name ?? ""),
     email: String(selectedPb.email ?? ""),
     phone_number: String(selectedPb.phone_number ?? ""),
-  } : { first_name: "", last_name: "", email: "", phone_number: "" };
+    address: getPbAddress(selectedPb),
+  } : { first_name: "", last_name: "", email: "", phone_number: "", address: "" };
 
   const getMergedValue = (field: keyof MergedFields) =>
     sources[field] === "pb" ? pbValues[field] : davValues[field];
@@ -96,7 +111,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     setSelectedPb(contact);
     // Auto-pick best source per field
     const newSources: Record<string, FieldSource> = {};
-    for (const field of ["first_name", "last_name", "email", "phone_number"] as const) {
+    for (const field of ["first_name", "last_name", "email", "phone_number", "address"] as const) {
       const pb = pbValues.first_name; // just for type; actual logic below
       void pb;
       const davVal = davValues[field];
@@ -117,6 +132,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
       last_name: getMergedValue("last_name"),
       email: getMergedValue("email"),
       phone_number: getMergedValue("phone_number"),
+      address: getMergedValue("address"),
     };
     onLink(String(selectedPb.id), merged);
   };
@@ -126,6 +142,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     { key: "last_name", label: "Last Name" },
     { key: "email", label: "Email" },
     { key: "phone_number", label: "Phone" },
+    { key: "address", label: "Address" },
   ];
 
   return (

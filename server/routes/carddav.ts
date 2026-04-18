@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { listAddressBooks, listContacts, updateVCard, buildVCard, type VCardFields } from "../services/carddav.js";
+import { listAddressBooks, listContacts, updateVCard, buildVCard, fetchVCard, type VCardFields } from "../services/carddav.js";
 import { loadLinks, setLink, removeLink } from "../services/links.js";
 
 export async function getAddressBooks(_req: Request, res: Response) {
@@ -71,7 +71,9 @@ export async function syncToRadicale(req: Request, res: Response) {
     return;
   }
   try {
-    const vcard = buildVCard(fields, existingRaw);
+    // If no existingRaw provided, fetch the current vCard from Radicale to preserve all fields (photos, etc.)
+    const raw = existingRaw || await fetchVCard(carddavHref);
+    const vcard = buildVCard(fields, raw);
     await updateVCard(carddavHref, vcard, etag);
     res.json({ ok: true });
   } catch (err: unknown) {
