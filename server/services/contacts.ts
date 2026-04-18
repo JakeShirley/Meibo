@@ -396,17 +396,24 @@ export async function mergeAndLink(
 
 // ── Map data ────────────────────────────────────────────────────────
 
-export interface MapPin {
+export interface MapPinResident {
   id: string;
   name: string;
+}
+
+export interface MapPin {
   lat: number;
   lon: number;
   address: string;
+  addressId: string;
+  residents: MapPinResident[];
 }
 
 export async function getMapPins(): Promise<MapPin[]> {
   const items = await pbGetFullList(COLLECTION, { expand: "current_address" });
-  const pins: MapPin[] = [];
+
+  // Group contacts by address (using lat/lon as key)
+  const pinMap = new Map<string, MapPin>();
 
   for (const c of items) {
     const expand = c.expand as Record<string, Record<string, unknown>> | undefined;
@@ -422,10 +429,17 @@ export async function getMapPins(): Promise<MapPin[]> {
     const address = ADDRESS_FIELDS
       .map((k) => String(addr[k] ?? "")).filter(Boolean).join(", ");
 
-    pins.push({ id: String(c.id), name, lat, lon, address });
+    const key = `${lat},${lon}`;
+    const addressId = String(addr.id ?? "");
+    const existing = pinMap.get(key);
+    if (existing) {
+      existing.residents.push({ id: String(c.id), name });
+    } else {
+      pinMap.set(key, { lat, lon, address, addressId, residents: [{ id: String(c.id), name }] });
+    }
   }
 
-  return pins;
+  return Array.from(pinMap.values());
 }
 
 // ── Export ───────────────────────────────────────────────────────────
