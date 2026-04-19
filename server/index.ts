@@ -16,7 +16,7 @@ import {
   rehydrateOne,
   rehydrateAddresses,
 } from "./routes/addresses.js";
-import { getAddressBooks, getContacts, getLinks, createLink, deleteLink, syncToRadicale, createContact } from "./routes/carddav.js";
+import { getAddressBooks, getContacts, getLinks, createLink, deleteLink, syncToRadicale, createContact, deleteContact } from "./routes/carddav.js";
 import {
   listContactsRoute,
   getContactRoute,
@@ -94,6 +94,7 @@ app.post("/api/carddav/links", jsonParser, createLink);
 app.delete("/api/carddav/links/:pbId", deleteLink);
 app.post("/api/carddav/sync", jsonParserLarge, syncToRadicale);
 app.post("/api/carddav/contacts", jsonParser, createContact);
+app.delete("/api/carddav/contacts", jsonParser, deleteContact);
 
 
 

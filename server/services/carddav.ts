@@ -207,3 +207,18 @@ export async function createNewVCard(
   }
   return { href };
 }
+
+// ── Delete a vCard from Radicale ─────────────────────────────────────
+export async function deleteVCard(href: string): Promise<void> {
+  const base = config.radicaleUrl.replace(/\/+$/, "");
+  const url = `${base}${href.startsWith("/") ? "" : "/"}${href}`;
+  const headers: Record<string, string> = {};
+  const auth = authHeader();
+  if (auth) headers.Authorization = auth;
+
+  const res = await fetch(url, { method: "DELETE", headers });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`CardDAV DELETE ${href} failed (${res.status}): ${text}`);
+  }
+}

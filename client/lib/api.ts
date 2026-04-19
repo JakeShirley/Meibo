@@ -327,6 +327,13 @@ export const carddav = {
     apiJSON<CardDavContact[]>(`/api/carddav/contacts?book=${encodeURIComponent(bookHref)}`),
 
   links: () => apiJSON<Record<string, string>>("/api/carddav/links"),
+
+  deleteContact: (href: string) =>
+    apiJSON<{ ok: boolean }>("/api/carddav/contacts", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ href }),
+    }),
 };
 
 // ── Geocode ─────────────────────────────────────────────────────────
