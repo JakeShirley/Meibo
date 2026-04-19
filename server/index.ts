@@ -23,6 +23,7 @@ import {
   createContactRoute,
   updateContactRoute,
   deleteContactRoute,
+  bulkUpdateRoute,
   linkContactRoute,
   linkCreateRoute,
   unlinkContactRoute,
@@ -49,9 +50,10 @@ app.get("/api/schema/contacts", schemaContacts);
 app.get("/api/schema/addresses", schemaAddresses);
 app.get("/api/schema/tags", schemaTags);
 
-// Contacts (must register /export and /map before /:id)
+// Contacts (must register /export, /map, /bulk before /:id)
 app.get("/api/contacts/export", exportContactsRoute);
 app.get("/api/contacts/map", mapContactsRoute);
+app.post("/api/contacts/bulk", jsonParser, bulkUpdateRoute);
 app.get("/api/contacts", listContactsRoute);
 app.get("/api/contacts/:id", getContactRoute);
 app.post("/api/contacts", jsonParser, createContactRoute);

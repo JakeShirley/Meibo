@@ -292,6 +292,61 @@ export async function deleteContact(id: string): Promise<void> {
   // Link is deleted with the contact — no separate cleanup needed
 }
 
+// ── Bulk update contacts ────────────────────────────────────────────
+
+export async function bulkUpdateContacts(
+  ids: string[],
+  data: Record<string, unknown>,
+  mode: "set" | "add" | "remove" = "set",
+): Promise<{ updated: number; errors: string[] }> {
+  let updated = 0;
+  const errors: string[] = [];
+
+  for (const id of ids) {
+    try {
+      let payload = data;
+
+      // For "add" mode on array/relation fields, merge with existing values
+      if (mode === "add") {
+        const existing = await pbGetOne(COLLECTION, id);
+        const merged: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(data)) {
+          const current = existing[key];
+          if (Array.isArray(value)) {
+            const currentArr = Array.isArray(current) ? current : current ? [current] : [];
+            const combined = [...new Set([...currentArr.map(String), ...value.map(String)])];
+            merged[key] = combined;
+          } else {
+            merged[key] = value;
+          }
+        }
+        payload = merged;
+      } else if (mode === "remove") {
+        const existing = await pbGetOne(COLLECTION, id);
+        const merged: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(data)) {
+          const current = existing[key];
+          if (Array.isArray(value)) {
+            const currentArr = Array.isArray(current) ? current : current ? [current] : [];
+            const toRemove = new Set(value.map(String));
+            merged[key] = currentArr.map(String).filter((v) => !toRemove.has(v));
+          } else {
+            merged[key] = value;
+          }
+        }
+        payload = merged;
+      }
+
+      await pbUpdate(COLLECTION, id, payload);
+      updated++;
+    } catch (err) {
+      errors.push(`${id}: ${(err as Error).message}`);
+    }
+  }
+
+  return { updated, errors };
+}
+
 // ── Sync helper ─────────────────────────────────────────────────────
 
 async function syncContactToCardDav(pbId: string, carddavHref: string): Promise<void> {
