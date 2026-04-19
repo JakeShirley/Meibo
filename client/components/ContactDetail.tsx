@@ -27,6 +27,7 @@ interface Props {
   isLinked?: boolean;
   onLinkCardDav?: () => void;
   onAddressClick?: (addressId: string) => void;
+  onContactClick?: (contactId: string) => void;
 }
 
 const LABEL_OVERRIDES: Record<string, string> = {
@@ -40,7 +41,7 @@ function toLabel(name: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating, photoUri, isLinked, onLinkCardDav, onAddressClick }: Props) {
+export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating, photoUri, isLinked, onLinkCardDav, onAddressClick, onContactClick }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -52,7 +53,7 @@ export default function ContactDetail({ contact, fields, onClose, onEdit, onRehy
   // Expand relation_composed fields into sub-fields from the contact data
   const SKIP_KEYS = new Set(["id", "collectionId", "collectionName", "created", "updated", "expand",
     "_linked", "_photoUri", "_carddavHref"]);
-  const SKIP_SUB_KEYS = new Set(["latitude", "longitude"]);
+  const SKIP_SUB_KEYS = new Set(["latitude", "longitude", "_resolved"]);
 
   const expandedFields: { key: string; label: string; type?: string }[] = [];
   if (fields.length > 0) {
@@ -138,16 +139,41 @@ export default function ContactDetail({ contact, fields, onClose, onEdit, onRehy
         <div className={`${hasCoords ? "flex gap-6" : ""}`}>
           <div className={`${hasCoords ? "flex-1 min-w-0" : ""}`}>
             <dl className="space-y-3">
-              {nonAddressFields.map((f) => (
+              {nonAddressFields.map((f) => {
+                // Check for resolved multi-relation data
+                const resolved = contact[`${f.key}._resolved`] as { id: string; label: string }[] | undefined;
+                return (
                 <div key={f.key} className="flex gap-3">
                   <dt className="w-24 shrink-0 text-sm font-medium text-text-muted">
                     {f.label}
                   </dt>
                   <dd className="text-sm text-text">
-                    {String(contact[f.key] ?? "—")}
+                    {Array.isArray(resolved) && resolved.length > 0 ? (
+                      <span className="flex flex-wrap gap-x-2 gap-y-1">
+                        {resolved.map((r, i) => (
+                          <span key={r.id}>
+                            {onContactClick ? (
+                              <button
+                                type="button"
+                                onClick={() => onContactClick(r.id)}
+                                className="text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+                              >
+                                {r.label}
+                              </button>
+                            ) : (
+                              r.label
+                            )}
+                            {i < resolved.length - 1 && ","}
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      String(contact[f.key] ?? "\u2014")
+                    )}
                   </dd>
                 </div>
-              ))}
+                );
+              })}
               {addressDisplay && (
                 <div className="flex gap-3">
                   <dt className="w-24 shrink-0 text-sm font-medium text-text-muted">

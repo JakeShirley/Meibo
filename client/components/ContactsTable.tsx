@@ -32,9 +32,14 @@ function toLabel(name: string): string {
 
 function getCellValue(contact: Contact, col: { key: string; type: string }): string {
   if (col.type === "relation_composed") {
+    // Check for resolved multi-relation data (e.g. contact_residents._resolved)
+    const resolved = contact[`${col.key}._resolved`];
+    if (Array.isArray(resolved) && resolved.length > 0) {
+      return resolved.map((r: { label?: string }) => r.label || "—").join(", ");
+    }
     // First check for dot-notation sub-fields (from useContacts flattening)
     const prefix = `${col.key}.`;
-    const skip = new Set(["latitude", "longitude"]);
+    const skip = new Set(["latitude", "longitude", "_resolved"]);
     const parts: string[] = [];
     for (const [k, v] of Object.entries(contact)) {
       if (k.startsWith(prefix) && v) {

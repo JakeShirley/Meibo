@@ -362,6 +362,7 @@ export default function App() {
         <AddressesPage
           initialAddressId={deepLinkAddressId}
           onAddressViewed={() => setDeepLinkAddressId(null)}
+          onContactSelect={handleContactDeepLink}
         />
       )}
       {activeTab === "groups" && <GroupTagsPage />}
