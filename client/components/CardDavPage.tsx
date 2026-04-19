@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useCardDav, type CardDavContact } from "../hooks/useCardDav.ts";
 import { useLinks } from "../hooks/useLinks.ts";
+import { carddav as carddavApi } from "../lib/api.ts";
 import LinkMergeDialog from "./LinkMergeDialog.tsx";
 import CreateCardDavDialog from "./CreateCardDavDialog.tsx";
 import type { MergeFieldSelections } from "../lib/api.ts";
@@ -15,6 +16,7 @@ export default function CardDavPage() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const filtered = contacts.filter((c) => {
     const isLinked = !!getPbIdForHref(c.href);
@@ -50,6 +52,20 @@ export default function CardDavPage() {
       await removeLink(pbId);
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleDelete = async (href: string) => {
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await carddavApi.deleteContact(href);
+      setExpanded(null);
+      refetch();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -219,6 +235,8 @@ export default function CardDavPage() {
               onClose={() => setExpanded(null)}
               onLink={(c) => { setExpanded(null); setLinking(c); }}
               onUnlink={(href) => handleUnlink(href)}
+              onDelete={(href) => handleDelete(href)}
+              deleting={deleting}
             />
           )}
         </>
@@ -251,13 +269,18 @@ function VCardDetail({
   onClose,
   onLink,
   onUnlink,
+  onDelete,
+  deleting,
 }: {
   contact: CardDavContact;
   linkedPbId: string | undefined;
   onClose: () => void;
   onLink: (c: CardDavContact) => void;
   onUnlink: (href: string) => void;
+  onDelete: (href: string) => void;
+  deleting?: boolean;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   if (!contact) return null;
   return (
     <div
@@ -335,24 +358,56 @@ function VCardDetail({
           </pre>
         </details>
 
-        <div className="flex justify-end gap-2">
-          {linkedPbId ? (
-            <button
-              type="button"
-              onClick={() => onUnlink(contact.href)}
-              className="rounded-md border border-danger-border px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger-bg"
-            >
-              Unlink
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onLink(contact)}
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
-            >
-              🔗 Link to Contact
-            </button>
-          )}
+        <div className="flex items-center justify-between">
+          <div>
+            {confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-danger">Delete this contact?</span>
+                <button
+                  type="button"
+                  onClick={() => onDelete(contact.href)}
+                  disabled={deleting}
+                  className="rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white hover:bg-danger/80 disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : "Confirm"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-surface-hover"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="text-sm font-medium text-danger hover:underline"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {linkedPbId ? (
+              <button
+                type="button"
+                onClick={() => onUnlink(contact.href)}
+                className="rounded-md border border-danger-border px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger-bg"
+              >
+                Unlink
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onLink(contact)}
+                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
+              >
+                🔗 Link to Contact
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { listAddressBooks, listContacts, updateVCard, buildVCard, fetchVCard, createNewVCard, type VCardFields } from "../services/carddav.js";
+import { listAddressBooks, listContacts, updateVCard, buildVCard, fetchVCard, createNewVCard, deleteVCard, type VCardFields } from "../services/carddav.js";
 import { loadLinks, setLink, removeLink } from "../services/links.js";
 
 export async function getAddressBooks(_req: Request, res: Response) {
@@ -71,6 +71,31 @@ export async function createContact(req: Request, res: Response) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[CardDAV] createContact error:", message);
+    res.status(502).json({ error: message });
+  }
+}
+
+export async function deleteContact(req: Request, res: Response) {
+  const { href } = req.body as { href?: string };
+  if (!href) {
+    res.status(400).json({ error: "Missing href" });
+    return;
+  }
+  try {
+    // Also remove any PB link pointing to this href
+    const links = await loadLinks();
+    for (const [pbId, linkedHref] of Object.entries(links)) {
+      if (linkedHref === href) {
+        await removeLink(pbId);
+        console.log(`[CardDAV] Auto-unlinked PB:${pbId} before delete`);
+      }
+    }
+    await deleteVCard(href);
+    console.log(`[CardDAV] Deleted ${href}`);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[CardDAV] deleteContact error:", message);
     res.status(502).json({ error: message });
   }
 }
