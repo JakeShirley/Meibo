@@ -18,6 +18,9 @@ export interface VCardFields {
   bdayYear?: number;
   bdayMonth?: number;
   bdayDay?: number;
+  /** Base64-encoded photo data (no data: prefix). Mime type inferred or default JPEG. */
+  photo?: string;
+  photoMime?: string;
 }
 
 /** Unfold vCard line continuations (RFC 6350: CRLF + space/tab = continuation) */
@@ -133,6 +136,17 @@ export function buildVCard(fields: VCardFields, existingRaw?: string): string {
       const d = String(fields.bdayDay).padStart(2, "0");
       const bdayVal = `${y}-${m}-${d}`;
       setField("BDAY", bdayVal);
+    }
+    // Handle PHOTO
+    if (fields.photo !== undefined) {
+      // Remove ALL existing PHOTO lines (may span multiple lines via folding, already unfolded)
+      const photoRe = /^PHOTO[;:][^\r\n]*$/gim;
+      vcard = vcard.replace(photoRe, "");
+      if (fields.photo) {
+        const mime = fields.photoMime || "JPEG";
+        const photoLine = `PHOTO;ENCODING=b;TYPE=${mime}:${fields.photo}`;
+        vcard = vcard.replace(/\r?\nEND:VCARD/i, `\r\n${photoLine}\r\nEND:VCARD`);
+      }
     }
     vcard = vcard.replace(/(\r?\n){3,}/g, "\r\n");
     return vcard;

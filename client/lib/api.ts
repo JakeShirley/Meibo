@@ -226,6 +226,16 @@ export const contacts = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ carddavHref, fieldSelections }),
     }),
+
+  uploadPhoto: (id: string, photo: string, mime: string) =>
+    apiJSON<{ photoUri: string }>(`/api/contacts/${id}/photo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ photo, mime }),
+    }),
+
+  deletePhoto: (id: string) =>
+    apiJSON<{ ok: boolean }>(`/api/contacts/${id}/photo`, { method: "DELETE" }),
 };
 
 // ── Addresses ───────────────────────────────────────────────────────

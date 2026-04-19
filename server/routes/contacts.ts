@@ -12,6 +12,8 @@ import {
   mergeAndLink,
   getMapPins,
   exportContacts,
+  uploadContactPhoto,
+  clearContactPhoto,
   type MergeFieldSelections,
 } from "../services/contacts.js";
 
@@ -166,5 +168,40 @@ export async function exportContactsRoute(req: Request, res: Response) {
   } catch (err) {
     console.error("[Contacts] export error:", err);
     res.status(500).json({ error: "Export failed" });
+  }
+}
+
+export async function uploadPhotoRoute(req: Request, res: Response) {
+  const { photo, mime } = req.body as { photo?: string; mime?: string };
+  if (!photo || !mime) {
+    return res.status(400).json({ error: "Missing photo or mime" });
+  }
+  // Validate mime type
+  const allowed = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+  if (!allowed.has(mime)) {
+    return res.status(400).json({ error: "Unsupported image type" });
+  }
+  // Validate base64 (basic check — reject if too large or invalid chars)
+  if (photo.length > 5 * 1024 * 1024) {
+    return res.status(400).json({ error: "Photo too large (max 5MB base64)" });
+  }
+  try {
+    const result = await uploadContactPhoto(req.params.id, photo, mime);
+    res.json(result);
+  } catch (err) {
+    const e = err as Error & { status?: number };
+    console.error("[Contacts] photo upload error:", err);
+    res.status(e.status || 500).json({ error: e.message || "Photo upload failed" });
+  }
+}
+
+export async function deletePhotoRoute(req: Request, res: Response) {
+  try {
+    await clearContactPhoto(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    const e = err as Error & { status?: number };
+    console.error("[Contacts] photo delete error:", err);
+    res.status(e.status || 500).json({ error: e.message || "Photo delete failed" });
   }
 }

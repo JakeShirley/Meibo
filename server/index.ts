@@ -30,6 +30,8 @@ import {
   mergeContactRoute,
   mapContactsRoute,
   exportContactsRoute,
+  uploadPhotoRoute,
+  deletePhotoRoute,
 } from "./routes/contacts.js";
 import { listTags, createTag, updateTag, deleteTag, exportTags } from "./routes/tags.js";
 import { schemaContacts, schemaAddresses, schemaTags } from "./routes/schema.js";
@@ -65,6 +67,8 @@ app.post("/api/contacts/:id/link", jsonParser, linkContactRoute);
 app.post("/api/contacts/:id/link/create", jsonParser, linkCreateRoute);
 app.delete("/api/contacts/:id/link", unlinkContactRoute);
 app.post("/api/contacts/:id/merge", jsonParser, mergeContactRoute);
+app.post("/api/contacts/:id/photo", jsonParserLarge, uploadPhotoRoute);
+app.delete("/api/contacts/:id/photo", deletePhotoRoute);
 
 // Addresses (must register /export and /rehydrate before /:id)
 app.get("/api/addresses/export", exportAddresses);
