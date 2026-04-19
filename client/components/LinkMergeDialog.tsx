@@ -12,18 +12,33 @@ function formatBirthday(month: number, day: number, year: number): string {
 
 interface Props {
   carddavContact: CardDavContact;
+  preselectedPbId?: string;
   onLink: (pbId: string, fieldSelections: MergeFieldSelections) => void;
   onClose: () => void;
 }
 
 type FieldSource = "pb" | "carddav";
 
-export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Props) {
-  const [step, setStep] = useState<"search" | "merge">("search");
+export default function LinkMergeDialog({ carddavContact, preselectedPbId, onLink, onClose }: Props) {
+  const [step, setStep] = useState<"search" | "merge">(preselectedPbId ? "merge" : "search");
   const [query, setQuery] = useState(carddavContact.fn || "");
   const [results, setResults] = useState<Contact[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedPb, setSelectedPb] = useState<Contact | null>(null);
+
+  // Auto-load preselected PB contact
+  useEffect(() => {
+    if (!preselectedPbId) return;
+    (async () => {
+      try {
+        const contact = await contactsApi.get(preselectedPbId);
+        setSelectedPb(contact);
+      } catch {
+        // Fall back to search step
+        setStep("search");
+      }
+    })();
+  }, [preselectedPbId]);
 
   // Field sources for merge step
   const [sources, setSources] = useState<Record<string, FieldSource>>({
