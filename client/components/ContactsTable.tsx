@@ -14,6 +14,9 @@ interface Props {
   onSelect: (contact: Contact) => void;
   linkedIds?: Set<string>;
   photoMap?: Record<string, string>;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onToggleSelectAll?: () => void;
 }
 
 const LABEL_OVERRIDES: Record<string, string> = {
@@ -58,6 +61,9 @@ export default function ContactsTable({
   onSelect,
   linkedIds,
   photoMap,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
 }: Props) {
   const columns = fields.length > 0
     ? fields.map((f) => ({ key: f.name, label: toLabel(f.name), type: f.type }))
@@ -68,11 +74,25 @@ export default function ContactsTable({
     return sortDir === "asc" ? " ▲" : " ▼";
   };
 
+  const allSelected = contacts.length > 0 && selectedIds && contacts.every((c) => selectedIds.has(c.id));
+  const someSelected = selectedIds && contacts.some((c) => selectedIds.has(c.id)) && !allSelected;
+
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="min-w-full divide-y divide-border text-sm">
         <thead className="bg-thead">
           <tr>
+            {onToggleSelect && (
+              <th className="w-8 px-2 py-3">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = !!someSelected; }}
+                  onChange={() => onToggleSelectAll?.()}
+                  className="h-4 w-4 rounded border-input-border accent-primary"
+                />
+              </th>
+            )}
             {linkedIds && <th className="w-8 px-2 py-3"></th>}
             {columns.map((col) => (
               <th
@@ -90,7 +110,7 @@ export default function ContactsTable({
           {contacts.length === 0 ? (
             <tr>
               <td
-                colSpan={columns.length + (linkedIds ? 1 : 0)}
+                colSpan={columns.length + (linkedIds ? 1 : 0) + (onToggleSelect ? 1 : 0)}
                 className="px-4 py-8 text-center text-text-muted"
               >
                 No contacts found.
@@ -103,6 +123,17 @@ export default function ContactsTable({
                 onClick={() => onSelect(contact)}
                 className="cursor-pointer transition-colors hover:bg-surface-hover"
               >
+                {onToggleSelect && (
+                  <td className="px-2 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds?.has(contact.id) ?? false}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => onToggleSelect(contact.id)}
+                      className="h-4 w-4 rounded border-input-border accent-primary"
+                    />
+                  </td>
+                )}
                 {linkedIds && (
                   <td className="px-2 py-3 text-center">
                     {linkedIds.has(contact.id) ? (
@@ -114,6 +145,8 @@ export default function ContactsTable({
                 )}
                 {columns.map((col, i) => {
                   const photo = i === 0 && photoMap ? photoMap[contact.id] : undefined;
+                  const cellValue = getCellValue(contact, col);
+                  const isTagColumn = col.type === "relation_composed" && col.key === "group_tag";
                   return (
                     <td
                       key={col.key}
@@ -122,10 +155,21 @@ export default function ContactsTable({
                       {i === 0 && photo ? (
                         <div className="flex items-center gap-2">
                           <img src={photo} alt="" className="h-7 w-7 rounded-full object-cover" />
-                          {getCellValue(contact, col)}
+                          {cellValue}
+                        </div>
+                      ) : isTagColumn && cellValue && cellValue !== "—" ? (
+                        <div className="flex flex-wrap gap-1">
+                          {cellValue.split(",").map((tag) => tag.trim()).filter(Boolean).map((tag, ti) => (
+                            <span
+                              key={ti}
+                              className="inline-flex items-center justify-center rounded-full border border-primary bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-text"
+                            >
+                              {tag}
+                            </span>
+                          ))}
                         </div>
                       ) : (
-                        getCellValue(contact, col)
+                        cellValue
                       )}
                     </td>
                   );

@@ -5,6 +5,7 @@ import {
   createContact_,
   updateContact,
   deleteContact,
+  bulkUpdateContacts,
   linkToExisting,
   linkCreateNew,
   unlinkContact,
@@ -67,6 +68,27 @@ export async function deleteContactRoute(req: Request, res: Response) {
   } catch (err) {
     console.error("[Contacts] delete error:", err);
     res.status(500).json({ error: "Delete failed" });
+  }
+}
+
+export async function bulkUpdateRoute(req: Request, res: Response) {
+  const { ids, data, mode } = req.body as {
+    ids?: string[];
+    data?: Record<string, unknown>;
+    mode?: "set" | "add" | "remove";
+  };
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "Missing or empty ids array" });
+  }
+  if (!data || typeof data !== "object") {
+    return res.status(400).json({ error: "Missing data object" });
+  }
+  try {
+    const result = await bulkUpdateContacts(ids, data, mode || "set");
+    res.json(result);
+  } catch (err) {
+    console.error("[Contacts] bulk update error:", err);
+    res.status(500).json({ error: "Bulk update failed" });
   }
 }
 

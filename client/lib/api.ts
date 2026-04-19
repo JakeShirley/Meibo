@@ -185,6 +185,13 @@ export const contacts = {
   delete: (id: string) =>
     apiJSON<{ ok: boolean }>(`/api/contacts/${id}`, { method: "DELETE" }),
 
+  bulkUpdate: (ids: string[], data: Record<string, unknown>, mode: "set" | "add" | "remove" = "set") =>
+    apiJSON<{ updated: number; errors: string[] }>("/api/contacts/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, data, mode }),
+    }),
+
   map: () => apiJSON<MapPin[]>("/api/contacts/map"),
 
   exportUrl: (format: "csv" | "json", params: { sort?: string; search?: string } = {}) => {

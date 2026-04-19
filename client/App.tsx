@@ -17,6 +17,7 @@ import PixelTrees from "./components/PixelTrees.tsx";
 import MapPage from "./components/MapPage.tsx";
 import CardDavPage from "./components/CardDavPage.tsx";
 import LinkFromDetailDialog from "./components/LinkFromDetailDialog.tsx";
+import BulkActionBar from "./components/BulkActionBar.tsx";
 
 type Tab = "contacts" | "addresses" | "groups" | "map" | "carddav";
 
@@ -92,6 +93,16 @@ export default function App() {
   const [deepLinkAddressId, setDeepLinkAddressId] = useState<string | null>(
     initial.tab === "addresses" && initial.id ? initial.id : null,
   );
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+
+  const toggleBulkSelect = useCallback((id: string) => {
+    setBulkSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   // Sync URL hash when contact detail opens/closes on the contacts tab
   useEffect(() => {
@@ -131,6 +142,20 @@ export default function App() {
   const displayedContacts = linkFilter === "all"
     ? contacts
     : contacts.filter((c) => linkFilter === "linked" ? c._linked : !c._linked);
+
+  const toggleBulkSelectAll = useCallback(() => {
+    setBulkSelected((prev) => {
+      const allOnPage = displayedContacts.map((c) => c.id);
+      const allSelected = allOnPage.every((id) => prev.has(id));
+      if (allSelected) {
+        const next = new Set(prev);
+        for (const id of allOnPage) next.delete(id);
+        return next;
+      } else {
+        return new Set([...prev, ...allOnPage]);
+      }
+    });
+  }, [displayedContacts]);
 
   // Debounce search input
   useEffect(() => {
@@ -284,6 +309,18 @@ export default function App() {
             </div>
           )}
 
+          {bulkSelected.size > 0 && (
+            <div className="mb-4">
+              <BulkActionBar
+                selectedCount={bulkSelected.size}
+                selectedIds={bulkSelected}
+                schema={rawSchema}
+                onDone={() => { setBulkSelected(new Set()); refetch(); }}
+                onClear={() => setBulkSelected(new Set())}
+              />
+            </div>
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -299,6 +336,9 @@ export default function App() {
                 onSelect={setSelected}
                 linkedIds={linkedIds}
                 photoMap={photoMap}
+                selectedIds={bulkSelected}
+                onToggleSelect={toggleBulkSelect}
+                onToggleSelectAll={toggleBulkSelectAll}
               />
               <div className="mt-4">
                 <Pagination
