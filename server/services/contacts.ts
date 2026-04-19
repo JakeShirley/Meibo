@@ -162,7 +162,21 @@ export async function listContacts_(opts: {
     if (expand) {
       for (const relField of expandFields) {
         const related = expand[relField];
-        if (related && typeof related === "object" && !Array.isArray(related)) {
+        if (Array.isArray(related)) {
+          // Multi-relation: join each sub-field from all related records
+          const keys = related.length > 0
+            ? (relatedFieldOrder[relField] ?? Object.keys(related[0]))
+            : [];
+          for (const key of keys) {
+            if (SKIP.has(key)) continue;
+            const vals = related
+              .map((r: Record<string, unknown>) => r[key])
+              .filter((v) => v !== undefined && typeof v !== "object");
+            if (vals.length > 0) {
+              flat[`${relField}.${key}`] = vals.join(", ");
+            }
+          }
+        } else if (related && typeof related === "object") {
           const keys = relatedFieldOrder[relField] ?? Object.keys(related);
           for (const key of keys) {
             const val = (related as Record<string, unknown>)[key];
@@ -210,13 +224,26 @@ export async function getContact(id: string): Promise<Record<string, unknown>> {
   const contact = await pbGetOne(COLLECTION, id, expandFields.join(","));
   const flat: Record<string, unknown> = { ...contact };
 
-  const expand = contact.expand as Record<string, Record<string, unknown>> | undefined;
+  const expand = contact.expand as Record<string, unknown> | undefined;
   const SKIP = new Set(["id", "collectionId", "collectionName", "created", "updated", "expand"]);
   if (expand) {
     for (const relField of expandFields) {
       const related = expand[relField];
-      if (related && typeof related === "object" && !Array.isArray(related)) {
-        const keys = relatedFieldOrder[relField] ?? Object.keys(related);
+      if (Array.isArray(related)) {
+        const keys = related.length > 0
+          ? (relatedFieldOrder[relField] ?? Object.keys(related[0]))
+          : [];
+        for (const key of keys) {
+          if (SKIP.has(key)) continue;
+          const vals = related
+            .map((r: Record<string, unknown>) => r[key])
+            .filter((v) => v !== undefined && typeof v !== "object");
+          if (vals.length > 0) {
+            flat[`${relField}.${key}`] = vals.join(", ");
+          }
+        }
+      } else if (related && typeof related === "object") {
+        const keys = relatedFieldOrder[relField] ?? Object.keys(related as Record<string, unknown>);
         for (const key of keys) {
           const val = (related as Record<string, unknown>)[key];
           if (val !== undefined && !SKIP.has(key) && typeof val !== "object") {

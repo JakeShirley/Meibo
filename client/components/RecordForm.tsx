@@ -21,7 +21,12 @@ interface Props {
   onDelete?: () => void;
 }
 
+const LABEL_OVERRIDES: Record<string, string> = {
+  group_tag: "Group Tags",
+};
+
 function toLabel(name: string): string {
+  if (LABEL_OVERRIDES[name]) return LABEL_OVERRIDES[name];
   return name.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -53,13 +58,16 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
     if (record) {
       const init: Record<string, unknown> = {};
       for (const f of rawFields) {
-        init[f.name] = record[f.name] ?? "";
+        const isMulti = f.type === "relation" && (f.options?.maxSelect as number) > 1;
+        const raw = record[f.name];
+        init[f.name] = isMulti ? (Array.isArray(raw) ? raw : raw ? [raw] : []) : (raw ?? "");
       }
       setValues(init);
     } else {
       const init: Record<string, unknown> = {};
       for (const f of rawFields) {
-        init[f.name] = "";
+        const isMulti = f.type === "relation" && (f.options?.maxSelect as number) > 1;
+        init[f.name] = isMulti ? [] : "";
       }
       setValues(init);
     }
@@ -92,7 +100,8 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
         if (f.type === "number") {
           payload[f.name] = val === "" ? 0 : Number(val);
         } else if (f.type === "relation") {
-          payload[f.name] = val || null;
+          const isMulti = (f.options?.maxSelect as number) > 1;
+          payload[f.name] = isMulti ? (Array.isArray(val) ? val : val ? [val] : []) : (val || null);
         } else {
           payload[f.name] = val ?? "";
         }
@@ -163,6 +172,43 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
 
     if (f.type === "relation") {
       const options = relationOptions[f.name] ?? [];
+      const isMulti = (f.options?.maxSelect as number) > 1;
+
+      if (isMulti) {
+        const selected = Array.isArray(value) ? (value as string[]) : value ? [String(value)] : [];
+        const toggleOption = (id: string) => {
+          const next = selected.includes(id)
+            ? selected.filter((s) => s !== id)
+            : [...selected, id];
+          handleChange(f.name, next);
+        };
+        return (
+          <div className="flex flex-wrap gap-2">
+            {options.map((opt) => (
+              <label
+                key={opt.id}
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors ${
+                  selected.includes(opt.id)
+                    ? "border-primary bg-primary-light text-primary-text"
+                    : "border-input-border bg-surface-alt text-text-muted hover:border-input-focus"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(opt.id)}
+                  onChange={() => toggleOption(opt.id)}
+                  className="sr-only"
+                />
+                {opt.label}
+              </label>
+            ))}
+            {options.length === 0 && (
+              <span className="text-sm text-text-muted">No options available</span>
+            )}
+          </div>
+        );
+      }
+
       return (
         <select
           value={String(value)}

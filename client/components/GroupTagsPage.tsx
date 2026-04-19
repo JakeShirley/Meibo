@@ -11,7 +11,7 @@ interface Record {
   [key: string]: unknown;
 }
 
-export default function FamilySidesPage() {
+export default function GroupTagsPage() {
   const contacts = useCollection<Record>("contacts", { perPage: 500 });
   const tags = useCollection<Record>("group_tags", { perPage: 200 });
 
@@ -19,15 +19,13 @@ export default function FamilySidesPage() {
   const [editingContact, setEditingContact] = useState<Record | null | "new">(null);
   const [editingTag, setEditingTag] = useState<Record | null | "new">(null);
   const [searchInput, setSearchInput] = useState("");
-  const [expandedSide, setExpandedSide] = useState<string | null>(null);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
-  // Find the family relation field — prefer the new relation field, fall back to text
-  const familySideField = useMemo(() => {
+  // Find the group tag relation field
+  const groupTagField = useMemo(() => {
     const relation = contacts.fields.find((f) => f.name === "group_tag");
     if (relation) return "group_tag";
-    const legacy = contacts.fields.find((f) => f.name === "family_relation" || f.name === "family_side");
-    if (legacy) return legacy.name;
-    const generic = contacts.fields.find((f) => f.name.toLowerCase().includes("group") || f.name.toLowerCase().includes("family"));
+    const generic = contacts.fields.find((f) => f.name.toLowerCase().includes("group"));
     return generic?.name ?? "group_tag";
   }, [contacts.fields]);
 
@@ -56,10 +54,10 @@ export default function FamilySidesPage() {
 
     for (const item of filtered) {
       // group_tag may be a single ID or an array of IDs (multi-relation)
-      const rawValue = item[familySideField];
+      const rawValue = item[groupTagField];
       const rawIds = Array.isArray(rawValue) ? rawValue.map(String) : [String(rawValue ?? "").trim()];
       // Expanded names may be comma-joined for multi-relations
-      const expandedNames = String(item[`${familySideField}.name`] ?? "").trim();
+      const expandedNames = String(item[`${groupTagField}.name`] ?? "").trim();
 
       const resolvedNames: string[] = [];
       if (expandedNames) {
@@ -75,18 +73,18 @@ export default function FamilySidesPage() {
         if (!groups.has("Unassigned")) groups.set("Unassigned", []);
         groups.get("Unassigned")!.push(item);
       } else {
-        for (const side of resolvedNames) {
-          if (!groups.has(side)) groups.set(side, []);
-          groups.get(side)!.push(item);
+        for (const tagName of resolvedNames) {
+          if (!groups.has(tagName)) groups.set(tagName, []);
+          groups.get(tagName)!.push(item);
         }
       }
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [filtered, familySideField, tags.items]);
+  }, [filtered, groupTagField, tags.items]);
 
   const detailFields = useMemo(() => {
-    return contacts.fields.filter((f) => f.name !== familySideField);
-  }, [contacts.fields, familySideField]);
+    return contacts.fields.filter((f) => f.name !== groupTagField);
+  }, [contacts.fields, groupTagField]);
 
   const handleRefresh = () => {
     contacts.refetch();
@@ -127,25 +125,25 @@ export default function FamilySidesPage() {
               No contacts found.
             </div>
           ) : (
-            grouped.map(([side, members]) => (
-              <div key={side} className="rounded-lg border border-border bg-surface-alt">
+            grouped.map(([group, members]) => (
+              <div key={group} className="rounded-lg border border-border bg-surface-alt">
                 <button
-                  onClick={() => setExpandedSide(expandedSide === side ? null : side)}
+                  onClick={() => setExpandedGroup(expandedGroup === group ? null : group)}
                   className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-hover"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-semibold capitalize text-text">
-                      {side}
+                      {group}
                     </span>
                     <span className="rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary-text">
                       {members.length}
                     </span>
-                    {side !== "Unassigned" && (
+                    {group !== "Unassigned" && (
                       <span
                         onClick={(e) => {
                           e.stopPropagation();
                           const tagRecord = tags.items.find(
-                            (t) => String(t.name ?? "").toLowerCase() === side.toLowerCase()
+                            (t) => String(t.name ?? "").toLowerCase() === group.toLowerCase()
                           );
                           if (tagRecord) setEditingTag(tagRecord);
                         }}
@@ -156,7 +154,7 @@ export default function FamilySidesPage() {
                     )}
                   </div>
                   <svg
-                    className={`h-4 w-4 text-text-muted transition-transform ${expandedSide === side ? "rotate-180" : ""}`}
+                    className={`h-4 w-4 text-text-muted transition-transform ${expandedGroup === group ? "rotate-180" : ""}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -164,7 +162,7 @@ export default function FamilySidesPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-                {expandedSide === side && (
+                {expandedGroup === group && (
                   <div className="border-t border-border-light">
                     <table className="min-w-full divide-y divide-gray-100 text-sm">
                       <tbody className="divide-y divide-gray-50">
