@@ -18,9 +18,10 @@ interface Address {
 interface AddressesPageProps {
   initialAddressId?: string | null;
   onAddressViewed?: () => void;
+  onContactSelect?: (contactId: string) => void;
 }
 
-export default function AddressesPage({ initialAddressId, onAddressViewed }: AddressesPageProps = {}) {
+export default function AddressesPage({ initialAddressId, onAddressViewed, onContactSelect }: AddressesPageProps = {}) {
   const {
     collectionName,
     items,
@@ -46,6 +47,14 @@ export default function AddressesPage({ initialAddressId, onAddressViewed }: Add
   const [rehydrating, _setRehydrating] = useState(false);
   const [rehydrateStatus, setRehydrateStatus] = useState<string | null>(null);
   const [rehydratingSingle, setRehydratingSingle] = useState(false);
+
+  // Sync URL hash when address detail opens/closes
+  useEffect(() => {
+    const hash = selected ? `#addresses/${selected.id}` : "#addresses";
+    if (window.location.hash !== hash) {
+      window.history.replaceState(null, "", hash);
+    }
+  }, [selected]);
 
   const handleRehydrateOne = useCallback(async (id: string) => {
     setRehydratingSingle(true);
@@ -163,6 +172,7 @@ export default function AddressesPage({ initialAddressId, onAddressViewed }: Add
           onEdit={() => { setEditing(selected); setSelected(null); }}
           onRehydrate={() => handleRehydrateOne(selected.id)}
           rehydrating={rehydratingSingle}
+          onContactClick={onContactSelect}
         />
       )}
 

@@ -75,11 +75,18 @@ export async function listAddresses(req: Request, res: Response) {
     const SKIP = new Set(["id", "collectionId", "collectionName", "created", "updated", "expand"]);
     const items = result.items.map((item) => {
       const flat: Record<string, unknown> = { ...item };
-      const expand = item.expand as Record<string, Record<string, unknown>> | undefined;
+      const expand = item.expand as Record<string, Record<string, unknown> | Record<string, unknown>[]> | undefined;
       if (expand) {
         for (const relField of expandFields) {
           const related = expand[relField];
-          if (related && typeof related === "object" && !Array.isArray(related)) {
+          if (Array.isArray(related)) {
+            // Multi-relation: build array of {id, label} for the client
+            flat[`${relField}._resolved`] = related.map((r) => {
+              const label = [r.first_name, r.last_name, r.name]
+                .filter(Boolean).map(String).join(" ") || String(r.id);
+              return { id: String(r.id), label };
+            });
+          } else if (related && typeof related === "object") {
             for (const [key, val] of Object.entries(related)) {
               if (!SKIP.has(key) && typeof val !== "object") {
                 flat[`${relField}.${key}`] = val;
