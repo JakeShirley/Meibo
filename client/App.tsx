@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useContacts } from "./hooks/useContacts.ts";
 import { useLinks } from "./hooks/useLinks.ts";
 import { useCardDav, type CardDavContact } from "./hooks/useCardDav.ts";
-import { contacts as contactsApi, type Contact } from "./lib/api.ts";
+import { contacts as contactsApi, type Contact, type MergeFieldSelections } from "./lib/api.ts";
 import ContactsTable from "./components/ContactsTable.tsx";
 import ContactDetail from "./components/ContactDetail.tsx";
 import RecordForm from "./components/RecordForm.tsx";
@@ -15,6 +15,7 @@ import FallingPetals from "./components/FallingPetals.tsx";
 import MapPage from "./components/MapPage.tsx";
 import CardDavPage from "./components/CardDavPage.tsx";
 import LinkFromDetailDialog from "./components/LinkFromDetailDialog.tsx";
+import LinkMergeDialog from "./components/LinkMergeDialog.tsx";
 import BulkActionBar from "./components/BulkActionBar.tsx";
 import SidebarLayout from "./components/layouts/SidebarLayout.tsx";
 
@@ -69,7 +70,7 @@ export default function App() {
     refetch,
   } = useContacts();
 
-  const { links, linkToExisting, linkCreateNew } = useLinks();
+  const { links, linkCreateNew, mergeAndLink } = useLinks();
   const linkedIds = useMemo(() => new Set(Object.keys(links)), [links]);
 
   // Photos come enriched from the server in _photoUri
@@ -87,6 +88,7 @@ export default function App() {
   const [selected, setSelected] = useState<Contact | null>(null);
   const [editing, setEditing] = useState<Contact | null | "new">(null);
   const [linkingFromDetail, setLinkingFromDetail] = useState<Contact | null>(null);
+  const [mergingFromDetail, setMergingFromDetail] = useState<{ pb: Contact; dav: CardDavContact } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
   const [deepLinkAddressId, setDeepLinkAddressId] = useState<string | null>(
@@ -213,17 +215,27 @@ export default function App() {
     [books, selectedBook, linkCreateNew],
   );
 
-  // Single-call: server fetches PB data, syncs to existing vCard, saves link
+  // Transition from LinkFromDetailDialog → LinkMergeDialog for field selection
   const handleLinkExisting = useCallback(
     async (contact: Contact, davContact: CardDavContact) => {
+      setLinkingFromDetail(null);
+      setMergingFromDetail({ pb: contact, dav: davContact });
+    },
+    [],
+  );
+
+  const handleMergeFromDetail = useCallback(
+    async (pbId: string, fieldSelections: MergeFieldSelections) => {
+      if (!mergingFromDetail) return;
       try {
-        await linkToExisting(contact.id, davContact.href);
-        setLinkingFromDetail(null);
+        await mergeAndLink(pbId, mergingFromDetail.dav.href, fieldSelections);
+        setMergingFromDetail(null);
+        refetch();
       } catch (err) {
-        console.error("[Link] Failed to link:", err);
+        console.error("[Link] Failed to merge and link:", err);
       }
     },
-    [linkToExisting],
+    [mergingFromDetail, mergeAndLink, refetch],
   );
 
   const handleTabChange = useCallback((tab: Tab) => {
@@ -336,6 +348,15 @@ export default function App() {
           onCreateNew={handleCreateAndLink}
           onLinkExisting={handleLinkExisting}
           onClose={() => setLinkingFromDetail(null)}
+        />
+      )}
+
+      {mergingFromDetail && (
+        <LinkMergeDialog
+          carddavContact={mergingFromDetail.dav}
+          preselectedPbId={mergingFromDetail.pb.id}
+          onLink={(pbId, fieldSelections) => handleMergeFromDetail(pbId, fieldSelections)}
+          onClose={() => setMergingFromDetail(null)}
         />
       )}
 
