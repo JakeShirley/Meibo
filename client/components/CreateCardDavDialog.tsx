@@ -38,14 +38,15 @@ export default function CreateCardDavDialog({ linkedPbIds, onConfirm, onClose }:
     return () => clearTimeout(timer);
   }, [query, linkedPbIds]);
 
-  const getPbAddress = (c: Contact): { street: string; city: string; state: string; zip: string; country: string; display: string } => {
+  const getPbAddress = (c: Contact): { street: string; secondary: string; city: string; state: string; zip: string; country: string; display: string } => {
     // Server flattens expanded relations to dot-notation
     const street = String(c["current_address.address_street"] ?? "");
+    const secondary = String(c["current_address.address_secondary"] ?? "");
     const city = String(c["current_address.address_city"] ?? "");
     const state = String(c["current_address.address_state"] ?? "");
     const zip = String(c["current_address.address_zip"] ?? "");
     const country = String(c["current_address.address_country"] ?? "");
-    return { street, city, state, zip, country, display: [street, city, state, zip, country].filter(Boolean).join(", ") };
+    return { street, secondary, city, state, zip, country, display: [street, secondary, city, state, zip, country].filter(Boolean).join(", ") };
   };
 
   const handleCreate = async () => {

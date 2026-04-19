@@ -314,6 +314,7 @@ export default function RecordForm({ collection, fields, record, onSave, onClose
                   setValues((prev) => ({
                     ...prev,
                     address_street: s.street,
+                    address_secondary: s.secondary || prev.address_secondary,
                     address_city: s.city,
                     address_state: s.state,
                     address_zip: s.zip,

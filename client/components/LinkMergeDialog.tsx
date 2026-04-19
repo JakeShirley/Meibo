@@ -96,6 +96,7 @@ export default function LinkMergeDialog({ carddavContact, onLink, onClose }: Pro
     // Server flattens expanded relations to dot-notation
     const parts = [
       c["current_address.address_street"],
+      c["current_address.address_secondary"],
       c["current_address.address_city"],
       c["current_address.address_state"],
       c["current_address.address_zip"],

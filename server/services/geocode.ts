@@ -18,6 +18,7 @@ export interface GeoResult {
   };
   suggested_address?: {
     street: string;
+    secondary: string;
     city: string;
     state: string;
     zip: string;
@@ -70,6 +71,7 @@ export async function geocodeAddress(address: string): Promise<GeoResult | null>
 
     const suggested_address = {
       street: [context.address?.address_number, context.address?.street_name].filter(Boolean).join(" ") || "",
+      secondary: context.secondary_address?.name || "",
       city: context.place?.name || "",
       state: context.region?.region_code || context.region?.name || "",
       zip: context.postcode?.name || "",

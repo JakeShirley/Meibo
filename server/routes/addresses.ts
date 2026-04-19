@@ -4,7 +4,7 @@ import type { GeoResult } from "../services/geocode.js";
 import { pbList, pbGetFullList, pbGetOne, pbCreate, pbUpdate, pbDelete, pbGetCollection, type PBSchemaField } from "../services/pb.js";
 
 const COLLECTION = "contact_addresses";
-const ADDRESS_FIELDS = ["address_street", "address_city", "address_state", "address_zip", "address_country"];
+const ADDRESS_FIELDS = ["address_street", "address_secondary", "address_city", "address_state", "address_zip", "address_country"];
 
 let cachedCountryValues: string[] | null = null;
 
