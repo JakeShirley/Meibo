@@ -347,6 +347,48 @@ export async function bulkUpdateContacts(
   return { updated, errors };
 }
 
+// ── Photo upload ────────────────────────────────────────────────────
+
+export async function uploadContactPhoto(pbId: string, base64Data: string, mime: string): Promise<{ photoUri: string }> {
+  // Determine vCard type param from MIME
+  const typeMap: Record<string, string> = {
+    "image/jpeg": "JPEG",
+    "image/png": "PNG",
+    "image/gif": "GIF",
+    "image/webp": "WEBP",
+  };
+  const vcardType = typeMap[mime] || "JPEG";
+
+  // Get the linked CardDAV href
+  const links = await loadLinks();
+  const carddavHref = links[pbId];
+  if (!carddavHref) {
+    throw Object.assign(new Error("Contact is not linked to CardDAV"), { status: 400 });
+  }
+
+  // Fetch existing vCard, inject photo, push back
+  const raw = await fetchVCard(carddavHref);
+  const vcard = buildVCard({ photo: base64Data, photoMime: vcardType }, raw);
+  await updateVCard(carddavHref, vcard);
+
+  const photoUri = `data:${mime};base64,${base64Data}`;
+  console.log(`[Contacts] Photo uploaded for ${pbId} → CardDAV ${carddavHref} (${Math.round(base64Data.length / 1024)}KB)`);
+  return { photoUri };
+}
+
+export async function clearContactPhoto(pbId: string): Promise<void> {
+  const links = await loadLinks();
+  const carddavHref = links[pbId];
+  if (!carddavHref) {
+    throw Object.assign(new Error("Contact is not linked to CardDAV"), { status: 400 });
+  }
+
+  const raw = await fetchVCard(carddavHref);
+  const vcard = buildVCard({ photo: "" }, raw);
+  await updateVCard(carddavHref, vcard);
+  console.log(`[Contacts] Photo cleared for ${pbId} → CardDAV ${carddavHref}`);
+}
+
 // ── Sync helper ─────────────────────────────────────────────────────
 
 async function syncContactToCardDav(pbId: string, carddavHref: string): Promise<void> {

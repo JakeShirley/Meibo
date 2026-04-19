@@ -336,6 +336,7 @@ export default function App() {
           isLinked={!!selected._linked}
           onLinkCardDav={() => { setLinkingFromDetail(selected); }}
           onAddressClick={handleAddressClick}
+          onPhotoChange={(uri) => { photoMap[selected.id] = uri; }}
         />
       )}
 

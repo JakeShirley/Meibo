@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Contact } from "../types/contact.ts";
+import { contacts as contactsApi } from "../lib/api.ts";
 
 // Fix Leaflet marker icon with bundlers
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -28,6 +29,7 @@ interface Props {
   onLinkCardDav?: () => void;
   onAddressClick?: (addressId: string) => void;
   onContactClick?: (contactId: string) => void;
+  onPhotoChange?: (photoUri: string) => void;
 }
 
 const LABEL_OVERRIDES: Record<string, string> = {
@@ -41,7 +43,53 @@ function toLabel(name: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating, photoUri, isLinked, onLinkCardDav, onAddressClick, onContactClick }: Props) {
+export default function ContactDetail({ contact, fields, onClose, onEdit, onRehydrate, rehydrating, photoUri, isLinked, onLinkCardDav, onAddressClick, onContactClick, onPhotoChange }: Props) {
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [currentPhoto, setCurrentPhoto] = useState(photoUri);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setCurrentPhoto(photoUri); }, [photoUri]);
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (!allowed.includes(file.type)) return;
+    if (file.size > 3 * 1024 * 1024) return; // 3MB limit
+
+    setUploadingPhoto(true);
+    try {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]); // strip data:...;base64, prefix
+        };
+        reader.readAsDataURL(file);
+      });
+      const { photoUri: newUri } = await contactsApi.uploadPhoto(contact.id, base64, file.type);
+      setCurrentPhoto(newUri);
+      onPhotoChange?.(newUri);
+    } catch (err) {
+      console.error("Photo upload failed:", err);
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handlePhotoClear = async () => {
+    setUploadingPhoto(true);
+    try {
+      await contactsApi.deletePhoto(contact.id);
+      setCurrentPhoto(undefined);
+      onPhotoChange?.("");
+    } catch (err) {
+      console.error("Photo clear failed:", err);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -121,9 +169,51 @@ export default function ContactDetail({ contact, fields, onClose, onEdit, onRehy
       <div className={`w-full rounded-xl bg-surface-alt p-6 shadow-xl ${hasCoords ? "max-w-3xl" : "max-w-md"}`}>
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {photoUri && (
-              <img src={photoUri} alt="" className="h-12 w-12 rounded-full object-cover" />
-            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              className="hidden"
+              onChange={handlePhotoSelect}
+            />
+            {isLinked ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  className="group relative h-12 w-12 shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
+                  title="Upload photo"
+                >
+                  {currentPhoto ? (
+                    <img src={currentPhoto} alt="" className="h-12 w-12 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-light text-lg font-bold text-primary-text">
+                      {String(contact.first_name || contact.name || "?")[0]}
+                    </span>
+                  )}
+                  <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    {uploadingPhoto ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    )}
+                  </span>
+                </button>
+                {currentPhoto && !uploadingPhoto && (
+                  <button
+                    type="button"
+                    onClick={handlePhotoClear}
+                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-[10px] font-bold text-white shadow hover:bg-danger/80"
+                    title="Remove photo"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ) : currentPhoto ? (
+              <img src={currentPhoto} alt="" className="h-12 w-12 rounded-full object-cover" />
+            ) : null}
             <h2 className="text-lg font-bold text-text">Details</h2>
           </div>
           <button
