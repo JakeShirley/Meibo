@@ -11,13 +11,12 @@ import Pagination from "./components/Pagination.tsx";
 import ExportButtons from "./components/ExportButtons.tsx";
 import AddressesPage from "./components/AddressesPage.tsx";
 import GroupTagsPage from "./components/GroupTagsPage.tsx";
-import ThemeToggle from "./components/ThemeToggle.tsx";
 import FallingPetals from "./components/FallingPetals.tsx";
-import PixelTrees from "./components/PixelTrees.tsx";
 import MapPage from "./components/MapPage.tsx";
 import CardDavPage from "./components/CardDavPage.tsx";
 import LinkFromDetailDialog from "./components/LinkFromDetailDialog.tsx";
 import BulkActionBar from "./components/BulkActionBar.tsx";
+import SidebarLayout from "./components/layouts/SidebarLayout.tsx";
 
 type Tab = "contacts" | "addresses" | "groups" | "map" | "carddav";
 
@@ -227,185 +226,156 @@ export default function App() {
     [linkToExisting],
   );
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "contacts", label: "Contacts" },
-    { key: "addresses", label: "Addresses" },
-    { key: "groups", label: "Group Tags" },
-    { key: "map", label: "Map" },
-    { key: "carddav", label: "CardDAV" },
-  ];
+  const handleTabChange = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+    setSelected(null);
+    window.history.pushState(null, "", `#${TAB_HASH[tab]}`);
+  }, []);
 
-  return (
+  // ── Tab content (shared across layouts) ────────────────────────────
+  const contactsContent = (
     <>
-    <FallingPetals />
-    <div className="mx-auto min-h-screen max-w-6xl bg-surface px-4 py-8">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Contact Book</h1>
-          <p className="text-sm text-text-muted">
-            Browse and export your contacts
-          </p>
-        </div>
-        <ThemeToggle />
-      </header>
-
-      <div className="relative mb-6 flex gap-1 border-b border-border">
-        {tabs.map((tab) => (
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-full sm:w-72">
+            <SearchBar value={searchInput} onChange={setSearchInput} />
+          </div>
           <button
-            key={tab.key}
-            onClick={() => {
-              setActiveTab(tab.key);
-              setSelected(null);
-              window.history.pushState(null, "", `#${TAB_HASH[tab.key]}`);
-            }}
-            className={`relative z-20 px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? "border-b-2 border-primary text-primary"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
+            onClick={() => setEditing("new")}
+            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover"
           >
-            {tab.label}
+            + Add
           </button>
-        ))}
-        <PixelTrees />
+          <div className="flex items-center overflow-hidden rounded-md border border-border text-sm">
+            {(["all", "linked", "unlinked"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setLinkFilter(v)}
+                className={`px-2.5 py-1 capitalize transition-colors first:rounded-l-md last:rounded-r-md ${
+                  linkFilter === v
+                    ? "bg-primary text-white"
+                    : "text-text-secondary hover:bg-surface-hover"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+        <ExportButtons exportUrl={(format) => contactsApi.exportUrl(format, { sort: sortField ? (sortDir === "asc" ? sortField : `-${sortField}`) : "", search: searchInput })} />
       </div>
 
-      {activeTab === "contacts" && (
+      {error && (
+        <div className="mb-4 rounded-lg border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-text">
+          {error}
+        </div>
+      )}
+
+      {bulkSelected.size > 0 && (
+        <div className="mb-4">
+          <BulkActionBar
+            selectedCount={bulkSelected.size}
+            selectedIds={bulkSelected}
+            schema={rawSchema}
+            onDone={() => { setBulkSelected(new Set()); refetch(); }}
+            onClear={() => setBulkSelected(new Set())}
+          />
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      ) : (
         <>
-          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-full sm:w-72">
-                <SearchBar value={searchInput} onChange={setSearchInput} />
-              </div>
-              <button
-                onClick={() => setEditing("new")}
-                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover"
-              >
-                + Add
-              </button>
-              <div className="flex items-center overflow-hidden rounded-md border border-border text-sm">
-                {(["all", "linked", "unlinked"] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setLinkFilter(v)}
-                    className={`px-2.5 py-1 capitalize transition-colors first:rounded-l-md last:rounded-r-md ${
-                      linkFilter === v
-                        ? "bg-primary text-white"
-                        : "text-text-secondary hover:bg-surface-hover"
-                    }`}
-                  >
-                    {v}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <ExportButtons exportUrl={(format) => contactsApi.exportUrl(format, { sort: sortField ? (sortDir === "asc" ? sortField : `-${sortField}`) : "", search: searchInput })} />
+          <ContactsTable
+            contacts={displayedContacts}
+            fields={displayFields.tableFields}
+            sortField={sortField}
+            sortDir={sortDir}
+            onSort={handleSort}
+            onSelect={setSelected}
+            linkedIds={linkedIds}
+            photoMap={photoMap}
+            selectedIds={bulkSelected}
+            onToggleSelect={toggleBulkSelect}
+            onToggleSelectAll={toggleBulkSelectAll}
+          />
+          <div className="mt-4">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              onPageChange={setPage}
+            />
           </div>
-
-          {error && (
-            <div className="mb-4 rounded-lg border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-text">
-              {error}
-            </div>
-          )}
-
-          {bulkSelected.size > 0 && (
-            <div className="mb-4">
-              <BulkActionBar
-                selectedCount={bulkSelected.size}
-                selectedIds={bulkSelected}
-                schema={rawSchema}
-                onDone={() => { setBulkSelected(new Set()); refetch(); }}
-                onClear={() => setBulkSelected(new Set())}
-              />
-            </div>
-          )}
-
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            </div>
-          ) : (
-            <>
-              <ContactsTable
-                contacts={displayedContacts}
-                fields={displayFields.tableFields}
-                sortField={sortField}
-                sortDir={sortDir}
-                onSort={handleSort}
-                onSelect={setSelected}
-                linkedIds={linkedIds}
-                photoMap={photoMap}
-                selectedIds={bulkSelected}
-                onToggleSelect={toggleBulkSelect}
-                onToggleSelectAll={toggleBulkSelectAll}
-              />
-              <div className="mt-4">
-                <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  totalItems={totalItems}
-                  onPageChange={setPage}
-                />
-              </div>
-            </>
-          )}
-
-          {selected && (
-            <ContactDetail
-              contact={selected}
-              fields={displayFields.detailFields}
-              onClose={() => setSelected(null)}
-              onEdit={() => { setEditing(selected); setSelected(null); }}
-              photoUri={photoMap[selected.id]}
-              isLinked={!!selected._linked}
-              onLinkCardDav={() => { setLinkingFromDetail(selected); }}
-              onAddressClick={handleAddressClick}
-            />
-          )}
-
-          {linkingFromDetail && (
-            <LinkFromDetailDialog
-              contact={linkingFromDetail}
-              davContacts={davContacts.filter((c) => !Object.values(links).includes(c.href))}
-              books={books}
-              selectedBook={selectedBook || books[0]?.href || ""}
-              onCreateNew={handleCreateAndLink}
-              onLinkExisting={handleLinkExisting}
-              onClose={() => setLinkingFromDetail(null)}
-            />
-          )}
-
-          {editing && (
-            <RecordForm
-              collection="contacts"
-              fields={rawSchema}
-              record={editing === "new" ? null : editing}
-              onSave={() => {
-                // Server auto-syncs to CardDAV if the contact is linked
-                setEditing(null);
-                refetch();
-              }}
-              onClose={() => setEditing(null)}
-              onDelete={() => { setEditing(null); refetch(); }}
-            />
-          )}
         </>
       )}
 
+      {selected && (
+        <ContactDetail
+          contact={selected}
+          fields={displayFields.detailFields}
+          onClose={() => setSelected(null)}
+          onEdit={() => { setEditing(selected); setSelected(null); }}
+          photoUri={photoMap[selected.id]}
+          isLinked={!!selected._linked}
+          onLinkCardDav={() => { setLinkingFromDetail(selected); }}
+          onAddressClick={handleAddressClick}
+        />
+      )}
+
+      {linkingFromDetail && (
+        <LinkFromDetailDialog
+          contact={linkingFromDetail}
+          davContacts={davContacts.filter((c) => !Object.values(links).includes(c.href))}
+          books={books}
+          selectedBook={selectedBook || books[0]?.href || ""}
+          onCreateNew={handleCreateAndLink}
+          onLinkExisting={handleLinkExisting}
+          onClose={() => setLinkingFromDetail(null)}
+        />
+      )}
+
+      {editing && (
+        <RecordForm
+          collection="contacts"
+          fields={rawSchema}
+          record={editing === "new" ? null : editing}
+          onSave={() => {
+            setEditing(null);
+            refetch();
+          }}
+          onClose={() => setEditing(null)}
+          onDelete={() => { setEditing(null); refetch(); }}
+        />
+      )}
+    </>
+  );
+
+  const tabContent = (
+    <>
+      {activeTab === "contacts" && contactsContent}
       {activeTab === "addresses" && (
         <AddressesPage
           initialAddressId={deepLinkAddressId}
           onAddressViewed={() => setDeepLinkAddressId(null)}
         />
       )}
-
       {activeTab === "groups" && <GroupTagsPage />}
-
       {activeTab === "map" && <MapPage onContactSelect={handleContactDeepLink} onAddressSelect={handleAddressClick} />}
-
       {activeTab === "carddav" && <CardDavPage />}
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      <FallingPetals />
+      <SidebarLayout activeTab={activeTab} onTabChange={handleTabChange}>
+        {tabContent}
+      </SidebarLayout>
     </>
   );
 }
