@@ -122,6 +122,7 @@ export interface GeocodeSuggestion {
   match_code?: Record<string, string>;
   suggested_address: {
     street: string;
+    secondary: string;
     city: string;
     state: string;
     zip: string;

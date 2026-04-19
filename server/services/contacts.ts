@@ -15,7 +15,7 @@ import { geocodeAddress } from "./geocode.js";
 
 const COLLECTION = process.env.VITE_PB_COLLECTION || "contacts";
 const ADDRESS_COLLECTION = "contact_addresses";
-const ADDRESS_FIELDS = ["address_street", "address_city", "address_state", "address_zip", "address_country"];
+const ADDRESS_FIELDS = ["address_street", "address_secondary", "address_city", "address_state", "address_zip", "address_country"];
 
 // ── Schema helpers ──────────────────────────────────────────────────
 
@@ -372,6 +372,7 @@ function extractVCardFields(contact: Record<string, unknown>): VCardFields {
     email: String(contact.email ?? ""),
     tel: String(contact.phone_number ?? ""),
     adrStreet: String(addr?.address_street ?? ""),
+    adrSecondary: String(addr?.address_secondary ?? ""),
     adrCity: String(addr?.address_city ?? ""),
     adrState: String(addr?.address_state ?? ""),
     adrZip: String(addr?.address_zip ?? ""),
@@ -455,6 +456,7 @@ export async function mergeAndLink(
   // Address — for PB, use expanded relation; for CardDAV, use structured address
   const pbAddr = (pbContact.expand as Record<string, Record<string, unknown>> | undefined)?.current_address;
   const adrStreet = fieldSelections.address === "pb" ? String(pbAddr?.address_street ?? "") : davContact.adrStreet;
+  const adrSecondary = fieldSelections.address === "pb" ? String(pbAddr?.address_secondary ?? "") : davContact.adrSecondary;
   const adrCity = fieldSelections.address === "pb" ? String(pbAddr?.address_city ?? "") : davContact.adrCity;
   const adrState = fieldSelections.address === "pb" ? String(pbAddr?.address_state ?? "") : davContact.adrState;
   const adrZip = fieldSelections.address === "pb" ? String(pbAddr?.address_zip ?? "") : davContact.adrZip;
@@ -488,6 +490,7 @@ export async function mergeAndLink(
       email: merged.email,
       tel: merged.phone_number,
       adrStreet,
+      adrSecondary,
       adrCity,
       adrState,
       adrZip,
