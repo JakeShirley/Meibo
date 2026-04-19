@@ -109,11 +109,9 @@ interface TreePlacement {
 }
 
 const PLACEMENTS: TreePlacement[] = [
-  { treeIndex: 0, x: 42, scale: 1.2, flip: false },
-  { treeIndex: 2, x: 58, scale: 0.9, flip: true },
-  { treeIndex: 1, x: 75, scale: 1.1, flip: false },
-  { treeIndex: 0, x: 90, scale: 1.0, flip: true },
-  { treeIndex: 2, x: 95, scale: 0.7, flip: false },
+  { treeIndex: 0, x: 5, scale: 1.0, flip: false },
+  { treeIndex: 2, x: 35, scale: 0.8, flip: true },
+  { treeIndex: 1, x: 60, scale: 0.9, flip: false },
 ];
 
 export default function PixelTrees() {
