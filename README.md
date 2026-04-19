@@ -187,7 +187,7 @@ contact_book/
 |---|---|
 | `contacts` | People with name, email, phone, birthday, group tag, and current address |
 | `contact_addresses` | Addresses with street, city, state, country, zip, latitude, longitude |
-| `group_tags` | Tags for grouping contacts (e.g., family sides) |
+| `group_tags` | Tags for grouping contacts |
 
 ## Themes
 

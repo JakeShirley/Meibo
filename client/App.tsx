@@ -10,7 +10,7 @@ import SearchBar from "./components/SearchBar.tsx";
 import Pagination from "./components/Pagination.tsx";
 import ExportButtons from "./components/ExportButtons.tsx";
 import AddressesPage from "./components/AddressesPage.tsx";
-import FamilySidesPage from "./components/FamilySidesPage.tsx";
+import GroupTagsPage from "./components/GroupTagsPage.tsx";
 import ThemeToggle from "./components/ThemeToggle.tsx";
 import FallingPetals from "./components/FallingPetals.tsx";
 import PixelTrees from "./components/PixelTrees.tsx";
@@ -18,12 +18,12 @@ import MapPage from "./components/MapPage.tsx";
 import CardDavPage from "./components/CardDavPage.tsx";
 import LinkFromDetailDialog from "./components/LinkFromDetailDialog.tsx";
 
-type Tab = "contacts" | "addresses" | "family_sides" | "map" | "carddav";
+type Tab = "contacts" | "addresses" | "groups" | "map" | "carddav";
 
 const TAB_HASH: Record<Tab, string> = {
   contacts: "contacts",
   addresses: "addresses",
-  family_sides: "groups",
+  groups: "groups",
   map: "map",
   carddav: "carddav",
 };
@@ -205,7 +205,7 @@ export default function App() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "contacts", label: "Contacts" },
     { key: "addresses", label: "Addresses" },
-    { key: "family_sides", label: "Group Tags" },
+    { key: "groups", label: "Group Tags" },
     { key: "map", label: "Map" },
     { key: "carddav", label: "CardDAV" },
   ];
@@ -360,7 +360,7 @@ export default function App() {
         />
       )}
 
-      {activeTab === "family_sides" && <FamilySidesPage />}
+      {activeTab === "groups" && <GroupTagsPage />}
 
       {activeTab === "map" && <MapPage onContactSelect={handleContactDeepLink} onAddressSelect={handleAddressClick} />}
 

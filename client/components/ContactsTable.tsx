@@ -16,7 +16,12 @@ interface Props {
   photoMap?: Record<string, string>;
 }
 
+const LABEL_OVERRIDES: Record<string, string> = {
+  group_tag: "Group Tags",
+};
+
 function toLabel(name: string): string {
+  if (LABEL_OVERRIDES[name]) return LABEL_OVERRIDES[name];
   return name
     .replace(/[_-]/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
