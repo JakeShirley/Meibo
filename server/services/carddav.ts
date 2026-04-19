@@ -123,11 +123,19 @@ export async function listContacts(addressBookHref: string): Promise<CardDavCont
     const photoUri = extractPhoto(raw);
     const adr = extractAdr(raw);
     const bday = extractBday(raw);
+    const rawFn = extractVCardField(raw, "FN") || "";
+    // If FN is a single word but N has both first+last, build a better display name
+    const nMatch = raw.match(/^N(?:;[^:]*)?:([^;\r\n]*);([^;\r\n]*)/im);
+    const nFirst = nMatch?.[2]?.trim() || "";
+    const nLast = nMatch?.[1]?.trim() || "";
+    const fn = (!rawFn.includes(" ") && nFirst && nLast)
+      ? `${nFirst} ${nLast}`
+      : rawFn;
     contacts.push({
       uid: extractVCardField(raw, "UID") || hrefMatch[1],
       href: hrefMatch[1],
       etag: etagMatch?.[1] || "",
-      fn: extractVCardField(raw, "FN") || "",
+      fn,
       email: extractVCardField(raw, "EMAIL") || "",
       tel: extractVCardField(raw, "TEL") || "",
       org: extractVCardField(raw, "ORG") || "",
