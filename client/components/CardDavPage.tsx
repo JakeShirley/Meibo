@@ -17,20 +17,31 @@ export default function CardDavPage() {
   const [linkFilter, setLinkFilter] = useState<"all" | "linked" | "unlinked">("all");
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [sortField, setSortField] = useState<"fn" | "email" | "tel" | "org">("fn");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const filtered = contacts.filter((c) => {
-    const isLinked = !!getPbIdForHref(c.href);
-    if (linkFilter === "linked" && !isLinked) return false;
-    if (linkFilter === "unlinked" && isLinked) return false;
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      c.fn.toLowerCase().includes(q) ||
-      c.email.toLowerCase().includes(q) ||
-      c.tel.toLowerCase().includes(q) ||
-      c.org.toLowerCase().includes(q)
-    );
-  });
+  const filtered = useMemo(() => {
+    const list = contacts.filter((c) => {
+      const isLinked = !!getPbIdForHref(c.href);
+      if (linkFilter === "linked" && !isLinked) return false;
+      if (linkFilter === "unlinked" && isLinked) return false;
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (
+        c.fn.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        c.tel.toLowerCase().includes(q) ||
+        c.org.toLowerCase().includes(q)
+      );
+    });
+    list.sort((a, b) => {
+      const av = (a[sortField] || "").toLowerCase();
+      const bv = (b[sortField] || "").toLowerCase();
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [contacts, search, linkFilter, sortField, sortDir, getPbIdForHref]);
 
   const handleLink = async (pbId: string, fieldSelections: MergeFieldSelections) => {
     if (!linking) return;
@@ -165,10 +176,26 @@ export default function CardDavPage() {
               <thead className="bg-thead text-text-secondary">
                 <tr>
                   <th className="w-8 px-2 py-3"></th>
-                  <th className="px-4 py-3 font-medium">Name</th>
-                  <th className="px-4 py-3 font-medium">Email</th>
-                  <th className="px-4 py-3 font-medium">Phone</th>
-                  <th className="px-4 py-3 font-medium">Organization</th>
+                  {(["fn", "email", "tel", "org"] as const).map((col) => {
+                    const labels = { fn: "Name", email: "Email", tel: "Phone", org: "Organization" };
+                    const arrow = sortField === col ? (sortDir === "asc" ? " \u25B2" : " \u25BC") : "";
+                    return (
+                      <th
+                        key={col}
+                        onClick={() => {
+                          if (sortField === col) {
+                            setSortDir(sortDir === "asc" ? "desc" : "asc");
+                          } else {
+                            setSortField(col);
+                            setSortDir("asc");
+                          }
+                        }}
+                        className="cursor-pointer select-none px-4 py-3 font-medium hover:bg-surface-hover"
+                      >
+                        {labels[col]}{arrow}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-light">
