@@ -25,6 +25,7 @@ export async function listContactsRoute(req: Request, res: Response) {
       sort: (req.query.sort as string) || "",
       search: (req.query.search as string) || "",
       linked: (req.query.linked as "all" | "linked" | "unlinked") || "all",
+      filter: (req.query.filter as string) || "",
     });
     res.json(result);
   } catch (err) {
@@ -158,9 +159,25 @@ export async function mapContactsRoute(_req: Request, res: Response) {
 export async function exportContactsRoute(req: Request, res: Response) {
   try {
     const format = (req.query.format as string) === "json" ? "json" : "csv";
+    // Build tag filter if provided (comma-separated tag IDs)
+    const tagIds = (req.query.tags as string || "").split(",").filter(Boolean);
+    let tagFilter = "";
+    if (tagIds.length > 0) {
+      tagFilter = tagIds.map((id) => `group_tag ~ "${id}"`).join(" || ");
+    }
+    const exportFields = (req.query.fields as string || "").split(",").filter(Boolean);
+    const combineHouseholds = req.query.combine === "true";
+    const dropDomesticCountry = req.query.dropcountry !== "false"; // default true
+    const addrParam = req.query.addrformat as string || "single";
+    const addressFormat = (addrParam === "separated" ? "separated" : addrParam === "street-separated" ? "street-separated" : "single") as "single" | "separated" | "street-separated";
     const result = await exportContacts(format, {
       sort: (req.query.sort as string) || "",
       search: (req.query.search as string) || "",
+      filter: tagFilter,
+      fields: exportFields.length > 0 ? exportFields : undefined,
+      combineHouseholds,
+      dropDomesticCountry,
+      addressFormat,
     });
     res.setHeader("Content-Type", result.mime);
     res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import ThemeToggle from "../ThemeToggle.tsx";
 import PixelTrees from "../PixelTrees.tsx";
 
-type Tab = "contacts" | "addresses" | "groups" | "map" | "carddav";
+type Tab = "contacts" | "addresses" | "groups" | "map" | "carddav" | "export";
 
 interface TabDef {
   key: Tab;
@@ -60,6 +60,15 @@ const TABS: TabDef[] = [
     icon: (
       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+      </svg>
+    ),
+  },
+  {
+    key: "export",
+    label: "Export",
+    icon: (
+      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
       </svg>
     ),
   },
