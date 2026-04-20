@@ -90,6 +90,7 @@ export async function listContacts_(opts: {
   sort?: string;
   search?: string;
   linked?: "all" | "linked" | "unlinked";
+  filter?: string;
 }): Promise<EnrichedListResult> {
   // Discover searchable fields from schema
   const col = await pbGetCollection(COLLECTION);
@@ -119,6 +120,7 @@ export async function listContacts_(opts: {
   }
   if (opts.linked === "linked") filters.push('carddav_href != ""');
   else if (opts.linked === "unlinked") filters.push('(carddav_href = "" || carddav_href = null)');
+  if (opts.filter) filters.push(`(${opts.filter})`);
   const filter = filters.join(" && ");
 
   const result = await pbList(COLLECTION, {
@@ -598,11 +600,79 @@ export async function getMapPins(): Promise<MapPin[]> {
   return Array.from(pinMap.values());
 }
 
+// ── Household combining helper ──────────────────────────────────────
+
+function combineByHousehold(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  // Group by address (current_address field or reconstructed from split fields)
+  const groups = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const addr = String(row.current_address ?? "") ||
+      [row.street, row.city, row.state, row.zip, row.country].filter(Boolean).map(String).join(", ");
+    const key = addr || `__no_addr_${groups.size}`;
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const result: Record<string, unknown>[] = [];
+  for (const members of groups.values()) {
+    if (members.length <= 1) {
+      result.push(members[0]);
+      continue;
+    }
+
+    // Combine names: "Foo Bar" + "Baz Bar" → "Foo and Baz Bar"
+    const names = members
+      .map((m) => {
+        if (m.name) return String(m.name);
+        return [m.first_name, m.last_name].filter(Boolean).map(String).join(" ");
+      })
+      .filter(Boolean);
+
+    const combined = { ...members[0] };
+    combined.name = combineNames(names);
+    if ("first_name" in combined) combined.first_name = combined.name;
+    if ("last_name" in combined) delete combined.last_name;
+    result.push(combined);
+  }
+  return result;
+}
+
+function combineNames(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+
+  // Split each name into first/last parts
+  const parsed = names.map((n) => {
+    const parts = n.trim().split(/\s+/);
+    const last = parts.length > 1 ? parts.slice(-1)[0] : "";
+    const first = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0];
+    return { first, last };
+  });
+
+  // Check if all share the same last name
+  const lastNames = new Set(parsed.map((p) => p.last).filter(Boolean));
+  if (lastNames.size === 1) {
+    const sharedLast = [...lastNames][0];
+    const firsts = [...new Set(parsed.map((p) => p.first))];
+    if (firsts.length === 1) return `${firsts[0]} ${sharedLast}`;
+    if (firsts.length === 2) return `${firsts[0]} & ${firsts[1]} ${sharedLast}`;
+    const allButLast = firsts.slice(0, -1).join(", ");
+    return `${allButLast}, & ${firsts[firsts.length - 1]} ${sharedLast}`;
+  }
+
+  // Different last names — join with " & "
+  const unique = [...new Set(names)];
+  if (unique.length === 2) return unique.join(" & ");
+  const allButLast = unique.slice(0, -1).join(", ");
+  return `${allButLast}, & ${unique[unique.length - 1]}`;
+}
+
 // ── Export ───────────────────────────────────────────────────────────
 
 export async function exportContacts(
   format: "csv" | "json",
-  opts: { sort?: string; search?: string; filter?: string } = {},
+  opts: { sort?: string; search?: string; filter?: string; fields?: string[]; combineHouseholds?: boolean; dropDomesticCountry?: boolean; addressFormat?: "single" | "separated" | "street-separated" } = {},
 ): Promise<{ content: string; mime: string; filename: string }> {
   const col = await pbGetCollection(COLLECTION);
   const schema: PBSchemaField[] = col.schema ?? [];
@@ -625,21 +695,63 @@ export async function exportContacts(
 
   // Flatten
   const SKIP = new Set(["id", "collectionId", "collectionName", "created", "updated", "expand"]);
+  const ADDR_PARTS = ["address_street", "address_secondary", "address_city", "address_state", "address_zip", "address_country"];
+  const DOMESTIC_COUNTRIES = new Set(["United States of America", "United States", "USA", "US"]);
   const flat = items.map((item) => {
     const row: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(item)) {
       if (SKIP.has(k)) continue;
       if (k === "expand") continue;
+      // When splitting address, skip the raw relation ID — we'll add split fields below
+      if (opts.addressFormat === "separated" && k === "current_address") continue;
+      if (opts.addressFormat === "street-separated" && k === "current_address") continue;
       row[k] = v;
     }
+    // Synthetic combined name field
+    row.name = [item.first_name, item.last_name].filter(Boolean).map(String).join(" ");
     const expand = item.expand as Record<string, Record<string, unknown>> | undefined;
     if (expand) {
       for (const relField of expandFields) {
         const related = expand[relField];
         if (related && typeof related === "object" && !Array.isArray(related)) {
-          for (const [key, val] of Object.entries(related)) {
-            if (!SKIP.has(key) && typeof val !== "object") {
-              row[`${relField}.${key}`] = val;
+          // For address relations, combine into a single readable string
+          if (relField === "current_address") {
+            if (opts.addressFormat === "separated") {
+              // Separate columns for each address part
+              const streetParts = [String(related.address_street ?? ""), String(related.address_secondary ?? "")].filter(Boolean);
+              row["street"] = streetParts.join(", ") || "";
+              row["city"] = String(related.address_city ?? "");
+              row["state"] = String(related.address_state ?? "");
+              row["zip"] = String(related.address_zip ?? "");
+              const country = String(related.address_country ?? "");
+              if (!opts.dropDomesticCountry || !DOMESTIC_COUNTRIES.has(country)) {
+                row["country"] = country;
+              } else {
+                row["country"] = "";
+              }
+            } else if (opts.addressFormat === "street-separated") {
+              // Street in one field, city/state/zip in another
+              const streetParts = [String(related.address_street ?? ""), String(related.address_secondary ?? "")].filter(Boolean);
+              row["street"] = streetParts.join(", ") || "";
+              const cszParts = [String(related.address_city ?? ""), String(related.address_state ?? ""), String(related.address_zip ?? "")].filter(Boolean);
+              const country = String(related.address_country ?? "");
+              if (!opts.dropDomesticCountry || !DOMESTIC_COUNTRIES.has(country)) {
+                if (country) cszParts.push(country);
+              }
+              row["city_state_zip"] = cszParts.join(", ");
+            } else {
+              const parts = ADDR_PARTS.map((k) => {
+                const val = String(related[k] ?? "");
+                if (opts.dropDomesticCountry && k === "address_country" && DOMESTIC_COUNTRIES.has(val)) return "";
+                return val;
+              }).filter(Boolean);
+              row[relField] = parts.join(", ");
+            }
+          } else {
+            for (const [key, val] of Object.entries(related)) {
+              if (!SKIP.has(key) && typeof val !== "object") {
+                row[`${relField}.${key}`] = val;
+              }
             }
           }
         }
@@ -648,18 +760,45 @@ export async function exportContacts(
     return row;
   });
 
+  // Filter to requested fields if specified
+  // Relation fields (e.g. "current_address") match all dot-notation sub-fields
+  // Split address fields (street, city, state, zip, country) match "current_address"
+  const allowedFields = opts.fields && opts.fields.length > 0 ? opts.fields : null;
+  const SPLIT_ADDR_KEYS = new Set(["street", "city", "state", "zip", "country", "city_state_zip"]);
+  const fieldMatches = (key: string): boolean => {
+    if (!allowedFields) return true;
+    for (const f of allowedFields) {
+      if (key === f || key.startsWith(`${f}.`)) return true;
+      // When address is split, the keys are "street", "city", etc. — match if "current_address" is selected
+      if (f === "current_address" && SPLIT_ADDR_KEYS.has(key)) return true;
+    }
+    return false;
+  };
+  const filtered = allowedFields
+    ? flat.map((row) => {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(row)) {
+          if (fieldMatches(k)) out[k] = v;
+        }
+        return out;
+      })
+    : flat;
+
+  // Combine households: merge rows sharing the same address into one with combined names
+  const output = opts.combineHouseholds ? combineByHousehold(filtered) : filtered;
+
   if (format === "json") {
     return {
-      content: JSON.stringify(flat, null, 2),
+      content: JSON.stringify(output, null, 2),
       mime: "application/json",
       filename: "contacts.json",
     };
   }
 
   // CSV
-  const fields = flat.length > 0 ? Object.keys(flat[0]) : [];
+  const fields = output.length > 0 ? Object.keys(output[0]) : [];
   const header = fields.join(",");
-  const rows = flat.map((r) =>
+  const rows = output.map((r) =>
     fields.map((f) => {
       const val = String(r[f] ?? "");
       if (val.includes(",") || val.includes('"') || val.includes("\n")) {

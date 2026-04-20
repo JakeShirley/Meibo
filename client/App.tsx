@@ -8,18 +8,18 @@ import ContactDetail from "./components/ContactDetail.tsx";
 import RecordForm from "./components/RecordForm.tsx";
 import SearchBar from "./components/SearchBar.tsx";
 import Pagination from "./components/Pagination.tsx";
-import ExportButtons from "./components/ExportButtons.tsx";
 import AddressesPage from "./components/AddressesPage.tsx";
 import GroupTagsPage from "./components/GroupTagsPage.tsx";
 import FallingPetals from "./components/FallingPetals.tsx";
 import MapPage from "./components/MapPage.tsx";
 import CardDavPage from "./components/CardDavPage.tsx";
+import ExportPage from "./components/ExportPage.tsx";
 import LinkFromDetailDialog from "./components/LinkFromDetailDialog.tsx";
 import LinkMergeDialog from "./components/LinkMergeDialog.tsx";
 import BulkActionBar from "./components/BulkActionBar.tsx";
 import SidebarLayout from "./components/layouts/SidebarLayout.tsx";
 
-type Tab = "contacts" | "addresses" | "groups" | "map" | "carddav";
+type Tab = "contacts" | "addresses" | "groups" | "map" | "carddav" | "export";
 
 const TAB_HASH: Record<Tab, string> = {
   contacts: "contacts",
@@ -27,6 +27,7 @@ const TAB_HASH: Record<Tab, string> = {
   groups: "groups",
   map: "map",
   carddav: "carddav",
+  export: "export",
 };
 const HASH_TAB: Record<string, Tab> = Object.fromEntries(
   Object.entries(TAB_HASH).map(([k, v]) => [v, k as Tab]),
@@ -275,7 +276,6 @@ export default function App() {
             ))}
           </div>
         </div>
-        <ExportButtons exportUrl={(format) => contactsApi.exportUrl(format, { sort: sortField ? (sortDir === "asc" ? sortField : `-${sortField}`) : "", search: searchInput })} />
       </div>
 
       {error && (
@@ -390,6 +390,7 @@ export default function App() {
       {activeTab === "groups" && <GroupTagsPage />}
       {activeTab === "map" && <MapPage onContactSelect={handleContactDeepLink} onAddressSelect={handleAddressClick} />}
       {activeTab === "carddav" && <CardDavPage />}
+      {activeTab === "export" && <ExportPage />}
     </>
   );
 

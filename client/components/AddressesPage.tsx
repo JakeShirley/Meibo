@@ -6,7 +6,6 @@ import ContactDetail from "./ContactDetail.tsx";
 import RecordForm from "./RecordForm.tsx";
 import SearchBar from "./SearchBar.tsx";
 import Pagination from "./Pagination.tsx";
-import ExportButtons from "./ExportButtons.tsx";
 
 const COLLECTION = "contact_addresses";
 
@@ -121,7 +120,6 @@ export default function AddressesPage({ initialAddressId, onAddressViewed, onCon
             + Add
           </button>
         </div>
-        <ExportButtons exportUrl={(format) => addressesApi.exportUrl(format, { sort: sortField ? (sortDir === "asc" ? sortField : `-${sortField}`) : "" })} />
       </div>
 
       {rehydrateStatus && (

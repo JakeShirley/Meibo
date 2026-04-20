@@ -1,10 +1,8 @@
 import { useState, useMemo } from "react";
 import { useCollection } from "../hooks/useCollection.ts";
-import { contacts as contactsApi } from "../lib/api.ts";
 import ContactDetail from "./ContactDetail.tsx";
 import RecordForm from "./RecordForm.tsx";
 import SearchBar from "./SearchBar.tsx";
-import ExportButtons from "./ExportButtons.tsx";
 
 interface Record {
   id: string;
@@ -105,7 +103,6 @@ export default function GroupTagsPage() {
             + Tag
           </button>
         </div>
-        <ExportButtons exportUrl={(format) => contactsApi.exportUrl(format)} />
       </div>
 
       {(contacts.error || tags.error) && (

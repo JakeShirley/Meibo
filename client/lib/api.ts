@@ -157,6 +157,7 @@ export const contacts = {
     sort?: string;
     search?: string;
     linked?: "all" | "linked" | "unlinked";
+    filter?: string;
   } = {}) => {
     const qs = new URLSearchParams();
     if (params.page) qs.set("page", String(params.page));
@@ -164,6 +165,7 @@ export const contacts = {
     if (params.sort) qs.set("sort", params.sort);
     if (params.search) qs.set("search", params.search);
     if (params.linked) qs.set("linked", params.linked);
+    if (params.filter) qs.set("filter", params.filter);
     return apiJSON<PaginatedResult<Contact>>(`/api/contacts?${qs}`);
   },
 
