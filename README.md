@@ -2,6 +2,9 @@
 
 A web app for browsing, editing, and exporting contacts stored in a PocketBase database. Built with React, TypeScript, Tailwind CSS, Leaflet, and an Express API server.
 
+> [!NOTE]
+> This product is very AI-agent coded. Much of the implementation, documentation, and iteration has been produced with coding agents under human direction and review.
+
 ## Features
 
 - **Browse contacts** with sortable columns, search, and pagination
