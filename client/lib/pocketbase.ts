@@ -1,4 +1,5 @@
 import PocketBase from "pocketbase";
+import { ensureAuthenticated as ensureApiAuthenticated, getToken } from "./api.ts";
 
 // Point PocketBase SDK at our Express server (proxied via Vite in dev)
 // In dev: Vite proxies /api/* → Express → PocketBase
@@ -20,14 +21,9 @@ async function doAuth() {
   if (pb.authStore.isValid) return;
 
   try {
-    // Auth via our server endpoint (credentials are server-side only)
-    const res = await fetch("/api/server/auth", { method: "POST" });
-    const data = await res.json();
-    if (data.token) {
-      pb.authStore.save(data.token, null);
-    } else {
-      console.error("[Auth] Server auth failed:", data.error);
-    }
+    await ensureApiAuthenticated();
+    const token = getToken();
+    if (token) pb.authStore.save(token, null);
   } catch (err) {
     console.error("[Auth] Failed:", err);
   }

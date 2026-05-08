@@ -1,8 +1,16 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, type FormEvent, type ReactNode } from "react";
 import { useContacts } from "./hooks/useContacts.ts";
 import { useLinks } from "./hooks/useLinks.ts";
 import { useCardDav, type CardDavContact } from "./hooks/useCardDav.ts";
-import { contacts as contactsApi, type Contact, type MergeFieldSelections } from "./lib/api.ts";
+import {
+  AUTH_REQUIRED_EVENT,
+  checkAuthentication,
+  contacts as contactsApi,
+  login,
+  type AuthState,
+  type Contact,
+  type MergeFieldSelections,
+} from "./lib/api.ts";
 import ContactsTable from "./components/ContactsTable.tsx";
 import ContactDetail from "./components/ContactDetail.tsx";
 import RecordForm from "./components/RecordForm.tsx";
@@ -48,7 +56,176 @@ function setHash(tab: Tab, id?: string) {
   }
 }
 
+function AuthFrame({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <FallingPetals />
+      <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-8 text-text">
+        <div className="w-full max-w-sm rounded-lg border border-border bg-surface-alt p-6 shadow-sm">
+          {children}
+        </div>
+      </main>
+    </>
+  );
+}
+
+function AuthStatus({ message, loading, onRetry }: { message: string; loading: boolean; onRetry: () => void }) {
+  return (
+    <AuthFrame>
+      <div className="mb-5 flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-text">Contact Book</h1>
+        {loading && <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />}
+      </div>
+      <p className="text-sm text-text-secondary">{message}</p>
+      {!loading && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-5 w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+        >
+          Retry
+        </button>
+      )}
+    </AuthFrame>
+  );
+}
+
+function LoginScreen({ onLogin }: { onLogin: (username: string, password: string) => Promise<void> }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+
+    if (!username || !password) {
+      setError("Username and password are required");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onLogin(username, password);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <AuthFrame>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <h1 className="text-xl font-semibold text-text">Contact Book</h1>
+          <p className="mt-1 text-sm text-text-secondary">Sign in</p>
+        </div>
+
+        <div>
+          <label htmlFor="auth-username" className="mb-1 block text-sm font-medium text-text">
+            Username
+          </label>
+          <input
+            id="auth-username"
+            type="text"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            autoComplete="username"
+            autoFocus
+            className="w-full rounded-md border border-input-border bg-surface-alt px-3 py-2 text-sm text-text outline-none focus:border-input-focus"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="auth-password" className="mb-1 block text-sm font-medium text-text">
+            Password
+          </label>
+          <input
+            id="auth-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            className="w-full rounded-md border border-input-border bg-surface-alt px-3 py-2 text-sm text-text outline-none focus:border-input-focus"
+          />
+        </div>
+
+        {error && (
+          <div className="rounded-md border border-danger-border bg-danger-bg px-3 py-2 text-sm text-danger-text">
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {submitting ? "Signing in..." : "Sign in"}
+        </button>
+      </form>
+    </AuthFrame>
+  );
+}
+
 export default function App() {
+  const [authState, setAuthState] = useState<AuthState | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const refreshAuth = useCallback(async () => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      setAuthState(await checkAuthentication());
+    } catch (err) {
+      setAuthState(null);
+      setAuthError(err instanceof Error ? err.message : "Auth check failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshAuth();
+  }, [refreshAuth]);
+
+  useEffect(() => {
+    const handleAuthRequired = () => {
+      setAuthState({ authEnabled: true, authenticated: false });
+    };
+    window.addEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired);
+    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired);
+  }, []);
+
+  const handleLogin = useCallback(async (username: string, password: string) => {
+    setAuthState(await login(username, password));
+  }, []);
+
+  if (authLoading || !authState) {
+    return (
+      <AuthStatus
+        message={authError ?? "Checking access..."}
+        loading={authLoading}
+        onRetry={refreshAuth}
+      />
+    );
+  }
+
+  if (authState.authEnabled && !authState.authenticated) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  return <ContactBookApp />;
+}
+
+function ContactBookApp() {
   const initial = parseHash();
   const [activeTab, setActiveTab] = useState<Tab>(initial.tab);
   const [pendingDeepLinkId, setPendingDeepLinkId] = useState<string | undefined>(initial.id);

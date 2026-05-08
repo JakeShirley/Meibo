@@ -1,26 +1,132 @@
 // Typed API client — replaces PocketBase SDK
 // All data access goes through the new REST API on the Express server.
 
-let authToken: string | null = null;
-let authPromise: Promise<void> | null = null;
+const AUTH_TOKEN_STORAGE_KEY = "contact-book-auth-token";
+export const AUTH_REQUIRED_EVENT = "contact-book-auth-required";
 
-async function doAuth(): Promise<void> {
-  if (authToken) return;
-  const res = await fetch("/api/auth/login", { method: "POST" });
-  const data = await res.json();
-  if (data.token) {
-    authToken = data.token;
-  } else {
-    console.error("[Auth] Server auth failed:", data.error);
+export interface AuthState {
+  authEnabled: boolean;
+  authenticated: boolean;
+}
+
+export class AuthRequiredError extends Error {
+  status = 401;
+
+  constructor(message = "Authentication required") {
+    super(message);
+    this.name = "AuthRequiredError";
   }
 }
 
-export function ensureAuthenticated(): Promise<void> {
-  if (authToken) return Promise.resolve();
+type AuthMode = "unknown" | "disabled" | "enabled";
+
+function readStoredToken(): string | null {
+  try {
+    return window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+let authToken: string | null = null;
+let authMode: AuthMode = "unknown";
+let authPromise: Promise<AuthState> | null = null;
+
+authToken = readStoredToken();
+if (authToken) authMode = "enabled";
+
+function storeToken(token: string | null) {
+  authToken = token;
+  try {
+    if (token) window.sessionStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+    else window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function emitAuthRequired() {
+  window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+}
+
+async function readJSONBody(res: Response): Promise<Record<string, unknown>> {
+  return await res.json().catch(() => ({})) as Record<string, unknown>;
+}
+
+function stateFromBody(data: Record<string, unknown>): AuthState {
+  return {
+    authEnabled: data.authEnabled === true,
+    authenticated: data.authenticated !== false,
+  };
+}
+
+function authHeaders(headers?: HeadersInit): Headers {
+  const next = new Headers(headers);
+  if (authToken) next.set("Authorization", `Bearer ${authToken}`);
+  return next;
+}
+
+async function doAuthCheck(): Promise<AuthState> {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  const data = await readJSONBody(res);
+
+  if (res.ok) {
+    const state = stateFromBody(data);
+    authMode = state.authEnabled ? "enabled" : "disabled";
+    if (!state.authEnabled) storeToken(null);
+    return state;
+  }
+
+  if (res.status === 401) {
+    storeToken(null);
+    authMode = "enabled";
+    return { authEnabled: true, authenticated: false };
+  }
+
+  throw new Error(typeof data.error === "string" ? data.error : `Auth check failed (${res.status})`);
+}
+
+export function checkAuthentication(): Promise<AuthState> {
   if (!authPromise) {
-    authPromise = doAuth().finally(() => { authPromise = null; });
+    authPromise = doAuthCheck().finally(() => { authPromise = null; });
   }
   return authPromise;
+}
+
+export async function login(username: string, password: string): Promise<AuthState> {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  const data = await readJSONBody(res);
+
+  if (!res.ok) {
+    if (res.status === 401) authMode = "enabled";
+    throw new Error(typeof data.error === "string" ? data.error : `Login failed (${res.status})`);
+  }
+
+  const state = stateFromBody(data);
+  authMode = state.authEnabled ? "enabled" : "disabled";
+
+  if (state.authEnabled && typeof data.token === "string" && data.token) {
+    storeToken(data.token);
+  } else {
+    storeToken(null);
+  }
+
+  return state;
+}
+
+export async function ensureAuthenticated(): Promise<void> {
+  if (authMode === "disabled" || authToken) return;
+  if (authMode === "enabled") throw new AuthRequiredError();
+
+  const state = await checkAuthentication();
+  if (state.authEnabled && !state.authenticated) throw new AuthRequiredError();
 }
 
 export function getToken(): string {
@@ -29,12 +135,23 @@ export function getToken(): string {
 
 async function apiFetch(url: string, opts: RequestInit = {}): Promise<Response> {
   await ensureAuthenticated();
-  return fetch(url, opts);
+  const res = await fetch(url, {
+    ...opts,
+    headers: authHeaders(opts.headers),
+  });
+
+  if (res.status === 401) {
+    storeToken(null);
+    authMode = "enabled";
+    emitAuthRequired();
+  }
+
+  return res;
 }
 
 async function apiJSON<T = unknown>(url: string, opts: RequestInit = {}): Promise<T> {
   const res = await apiFetch(url, opts);
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error((data as Record<string, string>).error || `Request failed (${res.status})`) as Error & { status: number; data: unknown };
     err.status = res.status;
@@ -42,6 +159,41 @@ async function apiJSON<T = unknown>(url: string, opts: RequestInit = {}): Promis
     throw err;
   }
   return data as T;
+}
+
+function filenameFromDisposition(disposition: string | null): string | null {
+  if (!disposition) return null;
+
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  if (encoded) return decodeURIComponent(encoded.replace(/"/g, ""));
+
+  const quoted = /filename="([^"]+)"/i.exec(disposition)?.[1];
+  if (quoted) return quoted;
+
+  return /filename=([^;]+)/i.exec(disposition)?.[1]?.trim() ?? null;
+}
+
+function fallbackFilename(url: string): string {
+  const pathname = new URL(url, window.location.href).pathname;
+  return pathname.split("/").filter(Boolean).pop() || "download";
+}
+
+export async function downloadApiFile(url: string): Promise<void> {
+  const res = await apiFetch(url);
+  if (!res.ok) {
+    const data = await readJSONBody(res);
+    throw new Error(typeof data.error === "string" ? data.error : `Download failed (${res.status})`);
+  }
+
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filenameFromDisposition(res.headers.get("Content-Disposition")) ?? fallbackFilename(url);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
 }
 
 // ── Types ───────────────────────────────────────────────────────────

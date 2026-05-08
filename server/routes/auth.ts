@@ -1,12 +1,38 @@
 import type { Request, Response } from "express";
-import { getToken } from "../services/pb.js";
+import {
+  createAppAuthToken,
+  credentialsAreValid,
+  isAppAuthEnabled,
+  isRequestAuthenticated,
+} from "../middleware/appAuth.js";
 
-export async function handleAuth(_req: Request, res: Response) {
-  try {
-    const token = await getToken();
-    res.json({ token });
-  } catch (err) {
-    console.error("[Auth] Failed:", err);
-    res.status(500).json({ error: err instanceof Error ? err.message : "Auth failed" });
+export function handleAuth(req: Request, res: Response) {
+  if (!isAppAuthEnabled()) {
+    res.json({ authEnabled: false, authenticated: true });
+    return;
   }
+
+  if (isRequestAuthenticated(req)) {
+    res.json({ authEnabled: true, authenticated: true });
+    return;
+  }
+
+  const body = req.body as { username?: unknown; password?: unknown } | undefined;
+  const username = typeof body?.username === "string" ? body.username : "";
+  const password = typeof body?.password === "string" ? body.password : "";
+
+  if (!credentialsAreValid(username, password)) {
+    res.status(401).json({
+      error: "Invalid username or password",
+      authEnabled: true,
+      authenticated: false,
+    });
+    return;
+  }
+
+  res.json({
+    authEnabled: true,
+    authenticated: true,
+    token: createAppAuthToken(),
+  });
 }

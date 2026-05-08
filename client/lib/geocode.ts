@@ -1,3 +1,5 @@
+import { geocode } from "./api.ts";
+
 interface GeoResult {
   lat: number;
   lon: number;
@@ -7,9 +9,7 @@ interface GeoResult {
 export async function geocodeAddress(address: string): Promise<GeoResult | null> {
   if (!address.trim()) return null;
   try {
-    const res = await fetch(`/api/geocode?q=${encodeURIComponent(address)}`);
-    if (!res.ok) return null;
-    return await res.json();
+    return await geocode.forward(address);
   } catch {
     return null;
   }

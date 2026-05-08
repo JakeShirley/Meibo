@@ -1,5 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { tags as tagsApi, contacts as contactsApi, schema as schemaApi, type SchemaField } from "../lib/api.ts";
+import {
+  downloadApiFile,
+  tags as tagsApi,
+  contacts as contactsApi,
+  schema as schemaApi,
+  type SchemaField,
+} from "../lib/api.ts";
 
 interface Tag {
   id: string;
@@ -39,6 +45,8 @@ export default function ExportPage() {
   const [combineHouseholds, setCombineHouseholds] = useState(true);
   const [dropCountry, setDropCountry] = useState(true);
   const [addressFormat, setAddressFormat] = useState<"single" | "separated" | "street-separated">("single");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Load all tags and schema fields
   useEffect(() => {
@@ -138,8 +146,17 @@ export default function ExportPage() {
     return `/api/contacts/export?${qs}`;
   }, [format, selectedTags, exportFieldNames, allFields.length, combineHouseholds, dropCountry, addressFormat]);
 
-  const handleExport = () => {
-    window.open(exportUrl, "_blank");
+  const handleExport = async () => {
+    setExportError(null);
+    setExporting(true);
+    try {
+      await downloadApiFile(exportUrl);
+    } catch (err) {
+      console.error("[Export] Download failed:", err);
+      setExportError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const matchLabel = selectedTags.size === 0
@@ -327,11 +344,13 @@ export default function ExportPage() {
           <button
             type="button"
             onClick={handleExport}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+            disabled={exporting}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Export {format.toUpperCase()}
+            {exporting ? "Exporting..." : `Export ${format.toUpperCase()}`}
           </button>
         </div>
+        {exportError && <p className="mt-3 text-xs text-danger-text">{exportError}</p>}
       </div>
     </div>
   );

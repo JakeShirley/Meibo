@@ -5,6 +5,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { handleAuth } from "./routes/auth.js";
+import { requireAppAuth } from "./middleware/appAuth.js";
 import { handleGeocode } from "./routes/geocode.js";
 import {
   listAddresses,
@@ -43,9 +44,11 @@ const jsonParserLarge = express.json({ limit: "10mb" });
 // ── New unified API routes ──────────────────────────────────────────
 
 // Auth
-app.post("/api/auth/login", handleAuth);
+app.post("/api/auth/login", jsonParser, handleAuth);
 // Keep legacy endpoint for backward compat during migration
-app.post("/api/server/auth", handleAuth);
+app.post("/api/server/auth", jsonParser, handleAuth);
+
+app.use("/api", requireAppAuth);
 
 // Schema
 app.get("/api/schema/contacts", schemaContacts);
@@ -120,4 +123,5 @@ if (fs.existsSync(clientDist)) {
 app.listen(config.port, () => {
   console.log(`[Server] http://localhost:${config.port}`);
   console.log(`[Server] PocketBase: ${config.pocketbaseUrl}`);
+  console.log(`[Server] App auth: ${config.auth.enabled ? "enabled" : "disabled"}`);
 });

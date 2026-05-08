@@ -46,7 +46,7 @@ The browser **never talks directly** to PocketBase, Radicale, or Mapbox. Every u
 
 | Resource | Endpoints | Description |
 |---|---|---|
-| **Auth** | `POST /api/auth/login` | Server-side PB admin auth, returns opaque token |
+| **Auth** | `POST /api/auth/login` | Optional app login, returns a bearer token when configured |
 | **Schema** | `GET /api/schema/{contacts,addresses,tags}` | Normalized field definitions with pre-resolved relation options |
 | **Contacts** | `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id` | CRUD with enriched responses (link status, photos inline) |
 | **Contact Linking** | `POST /api/contacts/:id/link`, `POST .../link/create`, `DELETE .../link`, `POST .../merge` | Single-call link, create+link, unlink, merge+link |
@@ -62,6 +62,8 @@ The browser **never talks directly** to PocketBase, Radicale, or Mapbox. Every u
 - **`scripts/`** — One-off migration and backfill scripts
 
 The Express server keeps PocketBase admin credentials and Radicale auth server-side, auto-geocodes addresses on save, and auto-syncs linked contacts to CardDAV on edit.
+
+If `CONTACT_BOOK_AUTH_USERNAME` and `CONTACT_BOOK_AUTH_PASSWORD` are configured, every `/api/*` endpoint except the login endpoint requires the bearer token issued by `POST /api/auth/login`.
 
 ## Prerequisites
 
@@ -90,8 +92,12 @@ The Express server keeps PocketBase admin credentials and Radicale auth server-s
    PB_ADMIN_PASSWORD=your-password
    MAPBOX_ACCESS_TOKEN=pk.your_token_here
    SERVER_PORT=3001
+   CONTACT_BOOK_AUTH_USERNAME=
+   CONTACT_BOOK_AUTH_PASSWORD=
    VITE_PB_COLLECTION=contacts
    ```
+
+   To require sign-in to the app and API, set both `CONTACT_BOOK_AUTH_USERNAME` and `CONTACT_BOOK_AUTH_PASSWORD`. Leave both blank to run without app-level auth. The server fails fast if only one of them is set.
 
 3. **Mapbox setup** (for geocoding)
 
@@ -227,6 +233,8 @@ docker run --rm -p 3001:3001 \
   -e PB_ADMIN_EMAIL=admin@example.com \
   -e PB_ADMIN_PASSWORD=your-password \
   -e MAPBOX_ACCESS_TOKEN=pk.your_token \
+   -e CONTACT_BOOK_AUTH_USERNAME=contacts \
+   -e CONTACT_BOOK_AUTH_PASSWORD=change-me \
   contact_book
 ```
 
@@ -257,4 +265,6 @@ To use the published image instead of building locally, edit `docker-compose.yml
 | `PB_ADMIN_EMAIL` | — | PocketBase admin email |
 | `PB_ADMIN_PASSWORD` | — | PocketBase admin password |
 | `MAPBOX_ACCESS_TOKEN` | — | Mapbox public token for geocoding |
+| `CONTACT_BOOK_AUTH_USERNAME` | — | Optional app login username; requires `CONTACT_BOOK_AUTH_PASSWORD` when set |
+| `CONTACT_BOOK_AUTH_PASSWORD` | — | Optional app login password; requires `CONTACT_BOOK_AUTH_USERNAME` when set |
 | `CLIENT_DIST` | `./dist` | Override path to the built client (rarely needed) |
