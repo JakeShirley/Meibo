@@ -14,6 +14,12 @@ A web app for browsing, editing, and exporting contacts stored in a PocketBase d
 - **Export** to CSV or JSON
 - **Theming** — Light, Dracula, and Cherry Blossom (with animated falling pixel petals)
 
+## Screenshots
+
+![Contact list](docs/screenshots/contacts.png)
+
+![Export workflow](docs/screenshots/export.png)
+
 ## Architecture Summary
 
 Contact Book uses a React frontend, an Express API server, PocketBase for contact data, Radicale for CardDAV address books, and Mapbox for geocoding.
