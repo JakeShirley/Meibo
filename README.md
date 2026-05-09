@@ -2,6 +2,8 @@
 
 A web app for browsing, editing, and exporting contacts stored in a PocketBase database. Built with React, TypeScript, Tailwind CSS, Leaflet, and an Express API server.
 
+This product fills a very particular niche of mine and likely is not very useful for others. I have a Radicale server that serves my contacts, plus a small database of contacts for Christmas cards and other occasions. I wanted to de-dupe them and provide simple management and export tools to make sending cards, invites, and mailers much easier.
+
 Meibo (名簿) is the Japanese word for a register or roll of names: a direct, practical name for a contact utility.
 
 > [!NOTE]
