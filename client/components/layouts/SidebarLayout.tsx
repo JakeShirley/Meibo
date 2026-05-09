@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import ThemeToggle from "../ThemeToggle.tsx";
 import PixelTrees from "../PixelTrees.tsx";
+import ChangelogModal from "../ChangelogModal.tsx";
+import changelogMarkdown from "virtual:meibo-changelog";
 
 type Tab = "contacts" | "addresses" | "groups" | "map" | "carddav" | "export";
 
@@ -75,6 +77,9 @@ const TABS: TabDef[] = [
 ];
 
 export default function SidebarLayout({ activeTab, onTabChange, children }: Props) {
+  const [changelogOpen, setChangelogOpen] = useState(false);
+  const versionLabel = __APP_VERSION__.startsWith("v") ? __APP_VERSION__ : `v${__APP_VERSION__}`;
+
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
@@ -110,6 +115,14 @@ export default function SidebarLayout({ activeTab, onTabChange, children }: Prop
         </div>
         <div className="px-3 py-3">
           <ThemeToggle />
+          <button
+            type="button"
+            onClick={() => setChangelogOpen(true)}
+            className="mt-3 w-full rounded-md px-2 py-1.5 text-center text-xs font-medium text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+            aria-label={`Open changelog for ${versionLabel}`}
+          >
+            {versionLabel}
+          </button>
         </div>
       </nav>
 
@@ -117,6 +130,10 @@ export default function SidebarLayout({ activeTab, onTabChange, children }: Prop
       <main className="flex-1 overflow-y-auto bg-surface px-6 py-6">
         {children}
       </main>
+
+      {changelogOpen && (
+        <ChangelogModal markdown={changelogMarkdown} version={versionLabel} onClose={() => setChangelogOpen(false)} />
+      )}
     </div>
   );
 }
