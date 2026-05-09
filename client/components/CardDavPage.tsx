@@ -211,7 +211,7 @@ export default function CardDavPage() {
                     >
                       <td className="px-2 py-3 text-center">
                         {linkedPbId ? (
-                          <span title="Linked to Contact Book" className="text-primary">🔗</span>
+                          <span title="Linked to Meibo" className="text-primary">🔗</span>
                         ) : (
                           <span className="text-text-muted opacity-30">○</span>
                         )}

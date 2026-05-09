@@ -1,4 +1,4 @@
-# Example Docker Compose stack: Contact Book app + PocketBase.
+# Example Docker Compose stack: Meibo app + PocketBase.
 #
 # Quick start:
 #   1. cp .env.example .env  and fill in values (PB_ADMIN_EMAIL, PB_ADMIN_PASSWORD, MAPBOX_ACCESS_TOKEN)
@@ -7,12 +7,12 @@
 #
 # To use the prebuilt image from GHCR instead of building locally, replace
 # the `build: .` line under the `app` service with:
-#     image: ghcr.io/jakeshirley/contactbook:latest
+#     image: ghcr.io/jakeshirley/meibo:latest
 
 services:
   pocketbase:
     image: ghcr.io/muchobien/pocketbase:latest
-    container_name: contact_book_pocketbase
+    container_name: meibo_pocketbase
     restart: unless-stopped
     ports:
       - "8090:8090"
@@ -25,11 +25,11 @@ services:
       retries: 10
 
   app:
-    image: ghcr.io/jakeshirley/contactbook:latest
+    image: ghcr.io/jakeshirley/meibo:latest
     # To build locally instead of pulling from GHCR, comment out `image` above
     # and uncomment the line below:
     # build: .
-    container_name: contact_book_app
+    container_name: meibo_app
     restart: unless-stopped
     depends_on:
       pocketbase:
@@ -40,8 +40,8 @@ services:
       PB_ADMIN_EMAIL: "${PB_ADMIN_EMAIL}"
       PB_ADMIN_PASSWORD: "${PB_ADMIN_PASSWORD}"
       MAPBOX_ACCESS_TOKEN: "${MAPBOX_ACCESS_TOKEN}"
-      CONTACT_BOOK_AUTH_USERNAME: "${CONTACT_BOOK_AUTH_USERNAME:-}"
-      CONTACT_BOOK_AUTH_PASSWORD: "${CONTACT_BOOK_AUTH_PASSWORD:-}"
+      MEIBO_AUTH_USERNAME: "${MEIBO_AUTH_USERNAME:-}"
+      MEIBO_AUTH_PASSWORD: "${MEIBO_AUTH_PASSWORD:-}"
     ports:
       - "3001:3001"
 

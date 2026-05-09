@@ -77,7 +77,7 @@ function AuthStatus({ message, loading, onRetry }: { message: string; loading: b
   return (
     <AuthFrame>
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-text">Contact Book</h1>
+        <h1 className="text-xl font-semibold text-text">Meibo</h1>
         {loading && <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />}
       </div>
       <p className="text-sm text-text-secondary">{message}</p>
@@ -123,7 +123,7 @@ function LoginScreen({ onLogin }: { onLogin: (username: string, password: string
     <AuthFrame>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <h1 className="text-xl font-semibold text-text">Contact Book</h1>
+          <h1 className="text-xl font-semibold text-text">Meibo</h1>
           <p className="mt-1 text-sm text-text-secondary">Sign in</p>
         </div>
 
@@ -222,10 +222,10 @@ export default function App() {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
-  return <ContactBookApp />;
+  return <MeiboApp />;
 }
 
-function ContactBookApp() {
+function MeiboApp() {
   const initial = parseHash();
   const [activeTab, setActiveTab] = useState<Tab>(initial.tab);
   const [pendingDeepLinkId, setPendingDeepLinkId] = useState<string | undefined>(initial.id);

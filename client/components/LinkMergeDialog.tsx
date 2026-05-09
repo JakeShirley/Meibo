@@ -197,7 +197,7 @@ export default function LinkMergeDialog({ carddavContact, preselectedPbId, onLin
               Link CardDAV Contact
             </h2>
             <p className="mb-4 text-sm text-text-muted">
-              Linking <span className="font-medium text-primary">{carddavContact.fn || "Unnamed"}</span> — search for a Contact Book contact to link to:
+              Linking <span className="font-medium text-primary">{carddavContact.fn || "Unnamed"}</span> — search for a Meibo contact to link to:
             </p>
 
             <input
@@ -251,7 +251,7 @@ export default function LinkMergeDialog({ carddavContact, preselectedPbId, onLin
               Merge & Link
             </h2>
             <p className="mb-4 text-sm text-text-muted">
-              Choose which value to keep for each field. The merged result will be saved to both Contact Book and Radicale.
+              Choose which value to keep for each field. The merged result will be saved to both Meibo and Radicale.
             </p>
 
             <div className="mb-4 space-y-3">
@@ -275,7 +275,7 @@ export default function LinkMergeDialog({ carddavContact, preselectedPbId, onLin
                               : "border-border text-text-secondary hover:border-input-focus"
                           }`}
                         >
-                          <span className="mb-0.5 block text-[10px] font-bold uppercase text-text-muted">Contact Book</span>
+                          <span className="mb-0.5 block text-[10px] font-bold uppercase text-text-muted">Meibo</span>
                           {pbv || <span className="italic text-text-muted">empty</span>}
                         </button>
                         <button

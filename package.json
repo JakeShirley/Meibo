@@ -1,16 +1,16 @@
 {
-  "name": "contact_book",
+  "name": "meibo",
   "private": true,
   "version": "0.0.0-semantically-versioned",
   "type": "module",
   "description": "A web app for browsing, editing, and exporting contacts stored in a PocketBase database.",
-  "homepage": "https://github.com/JakeShirley/ContactBook#readme",
+  "homepage": "https://github.com/JakeShirley/Meibo#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JakeShirley/ContactBook.git"
+    "url": "git+https://github.com/JakeShirley/Meibo.git"
   },
   "bugs": {
-    "url": "https://github.com/JakeShirley/ContactBook/issues"
+    "url": "https://github.com/JakeShirley/Meibo/issues"
   },
   "author": "Jake Shirley",
   "license": "MIT",

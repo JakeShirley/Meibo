@@ -97,7 +97,7 @@ export default function CreateCardDavDialog({ linkedPbIds, onConfirm, onClose }:
               Create CardDAV Contact
             </h2>
             <p className="mb-4 text-sm text-text-muted">
-              Search for a Contact Book contact to push to your CardDAV address book. Already-linked contacts are excluded.
+              Search for a Meibo contact to push to your CardDAV address book. Already-linked contacts are excluded.
             </p>
 
             <input
@@ -149,7 +149,7 @@ export default function CreateCardDavDialog({ linkedPbIds, onConfirm, onClose }:
               Confirm New CardDAV Contact
             </h2>
             <p className="mb-4 text-sm text-text-muted">
-              A new vCard will be created in your CardDAV address book with the following data from Contact Book:
+              A new vCard will be created in your CardDAV address book with the following data from Meibo:
             </p>
 
             <div className="mb-4 space-y-3">

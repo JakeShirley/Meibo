@@ -1,11 +1,11 @@
 import "dotenv/config";
 
-const authUsername = process.env.CONTACT_BOOK_AUTH_USERNAME ?? "";
-const authPassword = process.env.CONTACT_BOOK_AUTH_PASSWORD ?? "";
+const authUsername = process.env.MEIBO_AUTH_USERNAME ?? process.env.CONTACT_BOOK_AUTH_USERNAME ?? "";
+const authPassword = process.env.MEIBO_AUTH_PASSWORD ?? process.env.CONTACT_BOOK_AUTH_PASSWORD ?? "";
 
 if ((authUsername && !authPassword) || (!authUsername && authPassword)) {
   throw new Error(
-    "CONTACT_BOOK_AUTH_USERNAME and CONTACT_BOOK_AUTH_PASSWORD must both be configured or both be omitted",
+    "MEIBO_AUTH_USERNAME and MEIBO_AUTH_PASSWORD must both be configured or both be omitted",
   );
 }
 

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Contact Book. This guide covers local development setup, project layout, and the commands used while working on the app.
+Thanks for helping improve Meibo. This guide covers local development setup, project layout, and the commands used while working on the app.
 
 ## Prerequisites
 
@@ -29,15 +29,15 @@ Thanks for helping improve Contact Book. This guide covers local development set
    PB_ADMIN_PASSWORD=your-password
    MAPBOX_ACCESS_TOKEN=pk.your_token_here
    SERVER_PORT=3001
-   CONTACT_BOOK_AUTH_USERNAME=
-   CONTACT_BOOK_AUTH_PASSWORD=
+   MEIBO_AUTH_USERNAME=
+   MEIBO_AUTH_PASSWORD=
    RADICALE_URL=http://127.0.0.1:5232
    RADICALE_USER=
    RADICALE_PASSWORD=
    VITE_PB_COLLECTION=contacts
    ```
 
-   To require sign-in to the app and API, set both `CONTACT_BOOK_AUTH_USERNAME` and `CONTACT_BOOK_AUTH_PASSWORD`. Leave both blank to run without app-level auth. The server fails fast if only one of them is set.
+   To require sign-in to the app and API, set both `MEIBO_AUTH_USERNAME` and `MEIBO_AUTH_PASSWORD`. Leave both blank to run without app-level auth. The server fails fast if only one of them is set.
 
 3. Create a Mapbox token for geocoding:
 
@@ -128,7 +128,7 @@ The Express server keeps PocketBase admin credentials and Radicale auth server-s
 ## Project Structure
 
 ```
-contact_book/
+meibo/
 |-- client/                  # React frontend
 |   |-- components/          # UI components
 |   |-- hooks/               # React hooks

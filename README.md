@@ -1,6 +1,8 @@
-# Contact Book
+# Meibo
 
 A web app for browsing, editing, and exporting contacts stored in a PocketBase database. Built with React, TypeScript, Tailwind CSS, Leaflet, and an Express API server.
+
+Meibo (名簿) is the Japanese word for a register or roll of names: a direct, practical name for a contact utility.
 
 > [!NOTE]
 > This product is very AI-agent coded. Much of the implementation, documentation, and iteration has been produced with coding agents under human direction and review.
@@ -22,11 +24,11 @@ A web app for browsing, editing, and exporting contacts stored in a PocketBase d
 
 ## Architecture Summary
 
-Contact Book uses a React frontend, an Express API server, PocketBase for contact data, Radicale for CardDAV address books, and Mapbox for geocoding.
+Meibo uses a React frontend, an Express API server, PocketBase for contact data, Radicale for CardDAV address books, and Mapbox for geocoding.
 
 The browser **never talks directly** to PocketBase, Radicale, or Mapbox. Every user action is a REST call to the Express server, which keeps service credentials server-side and coordinates contact edits, address geocoding, CardDAV linking, and exports.
 
-If `CONTACT_BOOK_AUTH_USERNAME` and `CONTACT_BOOK_AUTH_PASSWORD` are configured, every `/api/*` endpoint except the login endpoint requires the bearer token issued by `POST /api/auth/login`.
+If `MEIBO_AUTH_USERNAME` and `MEIBO_AUTH_PASSWORD` are configured, every `/api/*` endpoint except the login endpoint requires the bearer token issued by `POST /api/auth/login`.
 
 For local setup, project structure, and contribution workflow, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -39,7 +41,7 @@ A multi-stage [Dockerfile](Dockerfile) builds the Vite client and runs the Expre
 Images are published to **GitHub Container Registry** by [.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml) on every push to `main` and on version tags (`v*.*.*`). They are built for `linux/amd64` and `linux/arm64`.
 
 ```sh
-docker pull ghcr.io/jakeshirley/contactbook:latest
+docker pull ghcr.io/jakeshirley/meibo:latest
 ```
 
 Tags published:
@@ -52,15 +54,15 @@ Tags published:
 ### Build locally
 
 ```sh
-docker build -t contact_book .
+docker build -t meibo .
 docker run --rm -p 3001:3001 \
   -e POCKETBASE_URL=http://host.docker.internal:8090 \
   -e PB_ADMIN_EMAIL=admin@example.com \
   -e PB_ADMIN_PASSWORD=your-password \
   -e MAPBOX_ACCESS_TOKEN=pk.your_token \
-   -e CONTACT_BOOK_AUTH_USERNAME=contacts \
-   -e CONTACT_BOOK_AUTH_PASSWORD=change-me \
-  contact_book
+  -e MEIBO_AUTH_USERNAME=contacts \
+  -e MEIBO_AUTH_PASSWORD=change-me \
+  meibo
 ```
 
 Then open <http://localhost:3001>.
@@ -79,7 +81,7 @@ docker compose up -d
 
 On first run, open the PocketBase admin URL to create the admin account that matches `PB_ADMIN_EMAIL` / `PB_ADMIN_PASSWORD`, then create the `contacts`, `contact_addresses`, and `group_tags` collections (see [PocketBase Collections](#pocketbase-collections) above).
 
-To use the published image instead of building locally, edit `docker-compose.yml` and replace `build: .` with `image: ghcr.io/jakeshirley/contactbook:latest`.
+To use the published image instead of building locally, edit `docker-compose.yml` and replace `build: .` with `image: ghcr.io/jakeshirley/meibo:latest`.
 
 ### Environment variables
 
@@ -90,6 +92,8 @@ To use the published image instead of building locally, edit `docker-compose.yml
 | `PB_ADMIN_EMAIL` | — | PocketBase admin email |
 | `PB_ADMIN_PASSWORD` | — | PocketBase admin password |
 | `MAPBOX_ACCESS_TOKEN` | — | Mapbox public token for geocoding |
-| `CONTACT_BOOK_AUTH_USERNAME` | — | Optional app login username; requires `CONTACT_BOOK_AUTH_PASSWORD` when set |
-| `CONTACT_BOOK_AUTH_PASSWORD` | — | Optional app login password; requires `CONTACT_BOOK_AUTH_USERNAME` when set |
+| `MEIBO_AUTH_USERNAME` | — | Optional app login username; requires `MEIBO_AUTH_PASSWORD` when set |
+| `MEIBO_AUTH_PASSWORD` | — | Optional app login password; requires `MEIBO_AUTH_USERNAME` when set |
 | `CLIENT_DIST` | `./dist` | Override path to the built client (rarely needed) |
+
+Legacy `CONTACT_BOOK_AUTH_USERNAME` and `CONTACT_BOOK_AUTH_PASSWORD` values are still accepted as a compatibility fallback, but new deployments should use the `MEIBO_AUTH_*` variables.
