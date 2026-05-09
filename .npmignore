@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-server
+release
+.git
+.vscode
+.env
+.env.*
+!.env.example
+npm-debug.log*
+*.log
+coverage
+.DS_Store
+pb_data
+data

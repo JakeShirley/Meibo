@@ -4,8 +4,22 @@
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     [
+      "./scripts/semantic-release-complete-changelog.mjs",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/npm",
+      {
+        "npmPublish": false,
+        "tarballDir": "release"
+      }
+    ],
+    [
       "@semantic-release/github",
       {
+        "assets": "release/*.tgz",
         "successComment": false,
         "failComment": false
       }
