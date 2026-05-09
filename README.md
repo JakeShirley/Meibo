@@ -99,3 +99,4 @@ To use the published image instead of building locally, edit `docker-compose.yml
 | `CLIENT_DIST` | `./dist` | Override path to the built client (rarely needed) |
 
 Legacy `CONTACT_BOOK_AUTH_USERNAME` and `CONTACT_BOOK_AUTH_PASSWORD` values are still accepted as a compatibility fallback, but new deployments should use the `MEIBO_AUTH_*` variables.
+
